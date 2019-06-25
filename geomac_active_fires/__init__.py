@@ -6,17 +6,9 @@ def get_geomac():
     """
     Get GeoMAC data
     """
-    active_fire_url = 'https://rmgsc.cr.usgs.gov/outgoing/GeoMAC/current_year_fire_data/current_year_all_states/active_perimeters_dd83.zip'
-    with fiona.open('zip+{}'.format(active_fire_url)) as src:
-        features = []
-        for rec in src:
-            features.append(
-                    Feature(
-                        geometry=rec['geometry'],
-                        properties=rec
-                    )
-                )
-        return FeatureCollection(features)
+    url = 'https://rmgsc.cr.usgs.gov/outgoing/GeoMAC/current_year_fire_data/current_year_all_states/active_perimeters_dd83.zip'
+    with fiona.open(f'zip+{url}') as f:
+        return FeatureCollection([Feature(geometry=d['geometry'], properties=d) for d in f])
 
 
 if __name__ == '__main__':
