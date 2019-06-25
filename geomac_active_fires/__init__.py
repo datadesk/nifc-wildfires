@@ -16,9 +16,7 @@ def get_geomac():
                         properties=rec
                     )
                 )
-        collection = FeatureCollection(features)
-        with open("{}.geojson".format('geomac'), "w") as f:
-            f.write('%s' % collection)
+        return FeatureCollection(features)
 
 
 if __name__ == '__main__':
