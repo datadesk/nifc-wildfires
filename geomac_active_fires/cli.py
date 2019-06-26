@@ -1,5 +1,5 @@
 import click
-from geomac_active_fires import get_active_fire_perimeters
+from geomac_active_fires import get_active_fires
 
 
 @click.group()
@@ -12,8 +12,8 @@ def cmd():
 
 
 @cmd.command(help="Perimeters of active fires in a recent 24-hour period from GeoMAC")
-def active_fire_perimeters():
-    click.echo(get_active_fire_perimeters())
+def active_fires():
+    click.echo(get_active_fires())
 
 
 if __name__ == '__main__':
