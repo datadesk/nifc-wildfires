@@ -1,5 +1,5 @@
 geomac-wildfires
-==============
+================
 
 Download wildfire data from GeoMAC
 
@@ -12,7 +12,7 @@ Installation
 
 
 Command-line usage
------------------
+------------------
 
 ::
 
