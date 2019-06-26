@@ -1,13 +1,13 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 import unittest
-from geomac_active_fires import get_active_fire_perimeters
+from geomac_wildfires import get_active_fires
 
 
-class GeoMACActiveFiresUnitTest(unittest.TestCase):
+class GeomacWildfiresUnitTest(unittest.TestCase):
 
     def test_geomac(self):
-        get_active_fire_perimeters()
+        get_active_fires()
 
 
 if __name__ == '__main__':

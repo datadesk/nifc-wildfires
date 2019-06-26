@@ -8,18 +8,18 @@ def read(fname):
 
 
 setup(
-    name='GeoMAC-active-fires',
+    name='geomac-wildfires',
     version='0.0.1',
     description="Download latest fire perimeters from GeoMAC",
     long_description=read('README.rst'),
     author='Los Angeles Times Data Desk',
     author_email='datadesk@latimes.com',
-    url='http://www.github.com/datadesk/GeoMAC-active-fires',
+    url='http://www.github.com/datadesk/geomac-wildfires',
     license="MIT",
-    packages=("geomac_active_fires",),
+    packages=("geomac_wildfires",),
     entry_points="""
         [console_scripts]
-        geomacactivefires=geomac_active_fires.cli:cmd
+        geomacwildfires=geomac_wildfires.cli:cmd
     """,
     classifiers=[
         'Development Status :: 5 - Production/Stable',
