@@ -17,4 +17,4 @@ def active_fire_perimeters():
 
 
 if __name__ == '__main__':
-    cli()
+    cmd()
