@@ -1,5 +1,5 @@
 import click
-from geomac_active_fires import get_active_fires
+from geomac_wildfires import get_active_fires
 
 
 @click.group()
