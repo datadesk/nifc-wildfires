@@ -16,7 +16,7 @@ setup(
     author_email='datadesk@latimes.com',
     url='http://www.github.com/datadesk/GeoMAC-active-fires',
     license="MIT",
-    packages=("GeoMAC-active-fires",),
+    packages=("geomac_active_fires",),
     entry_points="""
         [console_scripts]
         geomacactivefires=geomac_active_fires.cli:cmd

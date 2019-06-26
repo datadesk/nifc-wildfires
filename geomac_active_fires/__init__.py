@@ -2,7 +2,7 @@ import fiona
 from geojson import Feature, FeatureCollection
 
 
-def get_geomac():
+def get_active_fire_perimeters():
     """
     Get GeoMAC data
     """
