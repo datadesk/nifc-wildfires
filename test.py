@@ -4,7 +4,7 @@ import unittest
 from geomac_active_fires import get_geomac
 
 
-class MyUnitTest(unittest.TestCase):
+class GeoMACActiveFiresUnitTest(unittest.TestCase):
 
     def test_geomac(self):
         get_geomac()

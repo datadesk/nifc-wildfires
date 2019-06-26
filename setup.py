@@ -8,15 +8,19 @@ def read(fname):
 
 
 setup(
-    name='<your-pypi-package-name>',
+    name='GeoMAC-active-fires',
     version='0.0.1',
-    description="<your-repo-description>",
+    description="Download latest fire perimeters from GeoMAC",
     long_description=read('README.rst'),
     author='Los Angeles Times Data Desk',
     author_email='datadesk@latimes.com',
-    url='http://www.github.com/datadesk/<your-repo-slug>',
+    url='http://www.github.com/datadesk/GeoMAC-active-fires',
     license="MIT",
-    packages=("<your-python-module-name>",),
+    packages=("GeoMAC-active-fires",),
+    entry_points="""
+        [console_scripts]
+        geomacactivefires=geomac_active_fires.cli:cmd
+    """,
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Programming Language :: Python',
