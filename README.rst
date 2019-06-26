@@ -1,14 +1,14 @@
-nasa-wildfires
+geomac-wildfires
 ==============
 
-Download wildfire data from NASA satellites
+Download wildfire data from GeoMAC
 
 Installation
 ------------
 
 ::
 
-    $ pipenv install geomac_active_fires
+    $ pipenv install geomac_wildfires
 
 
 Command-line usage
@@ -16,7 +16,7 @@ Command-line usage
 
 ::
 
-    Usage: geomacactivefires [OPTIONS] COMMAND [ARGS]...
+    Usage: geomacwildfires [OPTIONS] COMMAND [ARGS]...
 
       A command-line interface for downloading wildfire data from NASA
       satellites.
@@ -27,12 +27,12 @@ Command-line usage
       --help  Show this message and exit.
 
     Commands:
-      active-fire-perimeters  Download latest active fire perimeter data from GeoMAC
+      active-fires  Download latest active fire perimeter data from GeoMAC
 
 
 Download latest active fire perimeter data from GeoMAC. ::
 
-    $ geomacactivefires active-fire-perimeters
+    $ geomacwildfires active-fires
 
 
 Python usage
@@ -40,11 +40,11 @@ Python usage
 
 Import the library. ::
 
-    >>> import geomac_active_fires
+    >>> import geomac_wildfires
 
 Download a GeoJSON of active fire perimeters from GeoMAC. Returns GeoJSON. ::
 
-    >>> data = geomac_active_fires.get_active_fire_perimeters()
+    >>> data = geomac_wildfires.get_active_fires()
 
 
 Contributing
