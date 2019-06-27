@@ -9,7 +9,7 @@ def read(fname):
 
 setup(
     name='geomac-wildfires',
-    version='0.0.2',
+    version='0.0.3',
     description="Download latest fire perimeters from GeoMAC",
     long_description=read('README.rst'),
     author='Los Angeles Times Data Desk',
@@ -17,6 +17,11 @@ setup(
     url='http://www.github.com/datadesk/geomac-wildfires',
     license="MIT",
     packages=("geomac_wildfires",),
+    install_requires=[
+        "fiona",
+        "geojson",
+        "click",
+    ],
     entry_points="""
         [console_scripts]
         geomacwildfires=geomac_wildfires.cli:cmd
