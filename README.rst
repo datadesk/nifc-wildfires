@@ -8,7 +8,7 @@ Installation
 
 ::
 
-    $ pipenv install geomac_wildfires
+    $ pipenv install geomac-wildfires
 
 
 Command-line usage
