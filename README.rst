@@ -28,11 +28,13 @@ Command-line usage
 
     Commands:
       active-fires  Download latest active fire perimeter data from GeoMAC
+      nifc-sitrep  Download latest NIFC Sit Rep data from GeoMAC
 
 
 Download latest active fire perimeter data from GeoMAC. ::
 
     $ geomacwildfires active-fires
+    $ geomacwildfires nifc-sitrep
 
 
 Python usage
@@ -45,6 +47,10 @@ Import the library. ::
 Download a GeoJSON of active fire perimeters from GeoMAC. Returns GeoJSON. ::
 
     >>> data = geomac_wildfires.get_active_fires()
+
+Download a GeoJSON of active fire points from NIFC Sit Rep from GeoMAC. Returns GeoJSON. ::
+
+    >>> data = geomac_wildfires.get_nifc_sitrep()
 
 
 Contributing
