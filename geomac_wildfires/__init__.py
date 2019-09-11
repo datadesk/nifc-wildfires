@@ -26,7 +26,7 @@ def get_all_fires():
         return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=None)
 
     with fiona.open(f'zip+{url}') as f:
-        collection =  FeatureCollection([Feature(geometry=d['geometry'], properties=d) for d in f])
+        collection = FeatureCollection([Feature(geometry=d['geometry'], properties=d['properties'], precision=4) for d in f])
         collection['metadata'] = {
             'last_updated_datetime': str(utc_to_local(local_dt)),
             'last_updated_date': str(utc_to_local(local_dt)).split(' ')[0]
