@@ -9,10 +9,10 @@ flake8 = "*"
 coverage = "*"
 
 [packages]
+shapely = "*"
 fiona = "*"
 geojson = "*"
 click = "*"
-shapely = "*"
 
 [requires]
 python_version = "3.7"
