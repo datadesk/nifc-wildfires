@@ -12,6 +12,7 @@ coverage = "*"
 fiona = "*"
 geojson = "*"
 click = "*"
+shapely = "*"
 
 [requires]
 python_version = "3.7"

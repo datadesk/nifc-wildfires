@@ -1,5 +1,7 @@
+from shapely.geometry import shape, mapping
 import fiona
 import requests
+import time
 from datetime import datetime, timezone
 from geojson import Feature, FeatureCollection
 
@@ -26,7 +28,14 @@ def get_all_fires():
         return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=None)
 
     with fiona.open(f'zip+{url}') as f:
-        collection = FeatureCollection([Feature(geometry=d['geometry'], properties=d['properties'], precision=4) for d in f])
+        for feat in f:
+            try:
+                shp = shape(feat['geometry'])
+                feat['geometry'] = mapping(shp.simplify(0.001, preserve_topology=False))
+            except Exception:
+                print('pass')
+
+        collection = FeatureCollection([Feature(geometry=d['geometry'], properties=d['properties']) for d in f])
         collection['metadata'] = {
             'last_updated_datetime': str(utc_to_local(local_dt)),
             'last_updated_date': str(utc_to_local(local_dt)).split(' ')[0]
