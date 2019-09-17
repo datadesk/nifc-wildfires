@@ -28,14 +28,16 @@ def get_all_fires():
         return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=None)
 
     with fiona.open(f'zip+{url}') as f:
+        new_features = []
         for feat in f:
             try:
                 shp = shape(feat['geometry'])
-                feat['geometry'] = mapping(shp.simplify(0.001, preserve_topology=False))
+                feat['geometry'] = mapping(shp.simplify(0.00005, preserve_topology=False))
+                new_features.append(feat)
             except Exception:
                 print('pass')
 
-        collection = FeatureCollection([Feature(geometry=d['geometry'], properties=d['properties']) for d in f])
+        collection = FeatureCollection([Feature(geometry=d['geometry'], properties=d['properties']) for d in new_features])
         collection['metadata'] = {
             'last_updated_datetime': str(utc_to_local(local_dt)),
             'last_updated_date': str(utc_to_local(local_dt)).split(' ')[0]
