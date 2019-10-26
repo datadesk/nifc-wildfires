@@ -18,7 +18,7 @@ setup(
     license="MIT",
     packages=("geomac_wildfires",),
     install_requires=[
-        "shapely",
+        "requests",
         "fiona",
         "geojson",
         "click"
