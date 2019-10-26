@@ -18,22 +18,22 @@ Command-line usage
 
     Usage: geomacwildfires [OPTIONS] COMMAND [ARGS]...
 
-      A command-line interface for downloading wildfire data from NASA
-      satellites.
-
-      Returns GeoJSON.
+      A command-line interface for downloading wildfire perimeter data from
+      GeoMAC. Returns GeoJSON.
 
     Options:
       --help  Show this message and exit.
 
     Commands:
-      active-fires  Download latest active fire perimeter data from GeoMAC
-      nifc-sitrep  Download latest NIFC Sit Rep data from GeoMAC
+      active-fires  Perimeters of active fires in a recent 24-hour period from...
+      all-fires     Perimeters of all fires from GeoMAC
+      nifc-sitrep   NIFC Sit Rep fire points from GeoMAC
 
 
-Download latest active fire perimeter data from GeoMAC. ::
+Download data from GeoMAC. ::
 
     $ geomacwildfires active-fires
+    $ geomacwildfires all-fires
     $ geomacwildfires nifc-sitrep
 
 
@@ -47,6 +47,10 @@ Import the library. ::
 Download a GeoJSON of active fire perimeters from GeoMAC. Returns GeoJSON. ::
 
     >>> data = geomac_wildfires.get_active_fires()
+
+Download a GeoJSON of all fire perimeters from GeoMAC. Returns GeoJSON. ::
+
+    >>> data = geomac_wildfires.get_all_fires()
 
 Download a GeoJSON of active fire points from NIFC Sit Rep from GeoMAC. Returns GeoJSON. ::
 
