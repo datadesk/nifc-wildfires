@@ -10,7 +10,7 @@ def read(fname):
 setup(
     name='geomac-wildfires',
     version='0.0.14',
-    description="Download latest fire perimeters from GeoMAC",
+    description="Download wildfires data from GeoMAC",
     long_description=read('README.rst'),
     author='Los Angeles Times Data Desk',
     author_email='datadesk@latimes.com',
@@ -21,7 +21,7 @@ setup(
         "shapely",
         "fiona",
         "geojson",
-        "click",
+        "click"
     ],
     entry_points="""
         [console_scripts]
@@ -32,11 +32,13 @@ setup(
         'Programming Language :: Python',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
         'License :: OSI Approved :: MIT License',
     ],
     project_urls={
         'Maintainer': 'https://github.com/datadesk',
         'Source': 'https://github.com/datadesk/geomac-wildfires',
-        'Tracker': 'https://github.com/datadesk/geomac-wildfires/issues'
+        'Tracker': 'https://github.com/datadesk/geomac-wildfires/issues',
+        'CI': 'https://travis-ci.org/datadesk/geomac-wildfires/'
     },
 )

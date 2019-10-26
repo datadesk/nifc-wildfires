@@ -1,7 +1,10 @@
 geomac-wildfires
 ================
 
-Download wildfire data from GeoMAC
+Download wildfires data from GeoMAC
+
+.. image:: https://travis-ci.org/datadesk/geomac-wildfires.svg?branch=master
+    :target: https://travis-ci.org/datadesk/geomac-wildfires
 
 Installation
 ------------
