@@ -1,26 +1,28 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
 import fiona
 from geojson import Feature, FeatureCollection
 
 
-def get_active_fires():
+def get_active_perimeters():
     """
-    Get GeoMAC data
+    Get perimeters of active fires in a recent 24-hour period.
     """
     url = 'active_perimeters_dd83.zip'
     return _parse_shapefile(url)
 
 
-def get_all_fires():
+def get_all_perimeters():
     """
-    Get GeoMAC data for all fires
+    Get perimeters of all fires.
     """
     url = 'perimeters_dd83.zip'
     return _parse_shapefile(url)
 
 
-def get_nifc_sitrep():
+def get_nifc_incidents():
     """
-    Get NIFC Sit Rep data
+    Get fire incident points from NIFC situation reports
     """
     url = 'nifc_sit_rep_dd83.zip'
     return _parse_shapefile(url)

@@ -28,16 +28,16 @@ Command-line usage
       --help  Show this message and exit.
 
     Commands:
-      active-fires  Perimeters of active fires in a recent 24-hour period from...
-      all-fires     Perimeters of all fires from GeoMAC
-      nifc-sitrep   NIFC Sit Rep fire points from GeoMAC
+      active-perimeters   Perimeters of active fires in a recent 24-hour period
+      all-perimeters      Perimeters of all fires
+      nifc-incidents      Fire incident points from NIFC situation reports
 
 
 Download data from GeoMAC. ::
 
-    $ geomacwildfires active-fires
-    $ geomacwildfires all-fires
-    $ geomacwildfires nifc-sitrep
+    $ geomacwildfires active-perimeters
+    $ geomacwildfires all-perimeters
+    $ geomacwildfires get-nifc-incidents
 
 
 Python usage
@@ -46,18 +46,9 @@ Python usage
 Import the library. ::
 
     >>> import geomac_wildfires
-
-Download a GeoJSON of active fire perimeters from GeoMAC. Returns GeoJSON. ::
-
-    >>> data = geomac_wildfires.get_active_fires()
-
-Download a GeoJSON of all fire perimeters from GeoMAC. Returns GeoJSON. ::
-
-    >>> data = geomac_wildfires.get_all_fires()
-
-Download a GeoJSON of active fire points from NIFC Sit Rep from GeoMAC. Returns GeoJSON. ::
-
-    >>> data = geomac_wildfires.get_nifc_sitrep()
+    >>> data = geomac_wildfires.get_active_perimeters()
+    >>> data = geomac_wildfires.get_all_perimeters()
+    >>> data = geomac_wildfires.get_nifc_incidents()
 
 
 Contributing

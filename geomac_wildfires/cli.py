@@ -1,5 +1,11 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
 import click
-from geomac_wildfires import get_active_fires, get_all_fires, get_nifc_sitrep
+from geomac_wildfires import (
+    get_active_perimeters,
+    get_all_perimeters,
+    get_nifc_incidents
+)
 
 
 @click.group()
@@ -11,19 +17,19 @@ def cmd():
     pass
 
 
-@cmd.command(help="Perimeters of active fires in a recent 24-hour period from GeoMAC")
-def active_fires():
-    click.echo(get_active_fires())
+@cmd.command(help="Perimeters of active fires in a recent 24-hour period")
+def active_perimeters():
+    click.echo(get_active_perimeters())
 
 
-@cmd.command(help="Perimeters of all fires from GeoMAC")
-def all_fires():
-    click.echo(get_all_fires())
+@cmd.command(help="Perimeters of all fires")
+def all_perimeters():
+    click.echo(get_all_perimeters())
 
 
-@cmd.command(help="NIFC Sit Rep fire points from GeoMAC")
-def nifc_sitrep():
-    click.echo(get_nifc_sitrep())
+@cmd.command(help="Fire incident points from NIFC situation reports")
+def nifc_incidents():
+    click.echo(get_nifc_incidents())
 
 
 if __name__ == '__main__':
