@@ -1,16 +1,10 @@
 language: python
-
-cache:
-  - pip
-
+cache: pip
 python:
  - "3.6"
  - "3.7"
  - "3.8"
-
 install:
  - pip install pipenv
  - pipenv install --dev
-
-script:
- - make test
+script: make test
