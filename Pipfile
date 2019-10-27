@@ -12,7 +12,7 @@ coverage = "*"
 fiona = "*"
 geojson = "*"
 click = "*"
-request = "*"
+requests = "*"
 
 [requires]
 python_version = "3.7"

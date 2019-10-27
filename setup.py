@@ -12,8 +12,8 @@ setup(
     version='0.0.14',
     description="Download wildfires data from GeoMAC",
     long_description=read('README.rst'),
-    author='Los Angeles Times Data Desk',
-    author_email='datadesk@latimes.com',
+    author='Los Angeles Times Data and Graphics Department',
+    author_email='datagraphics@latimes.com',
     url='http://www.github.com/datadesk/geomac-wildfires',
     license="MIT",
     packages=("geomac_wildfires",),
@@ -33,7 +33,7 @@ setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
-        'License :: OSI Approved :: MIT License',
+        'License :: OSI Approved :: MIT License'
     ],
     project_urls={
         'Maintainer': 'https://github.com/datadesk',
