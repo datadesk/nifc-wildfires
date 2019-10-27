@@ -9,7 +9,7 @@ def read(fname):
 
 setup(
     name='geomac-wildfires',
-    version='0.0.14',
+    version='0.1.0',
     description="Download wildfires data from GeoMAC",
     long_description=read('README.rst'),
     author='Los Angeles Times Data and Graphics Department',
@@ -32,7 +32,6 @@ setup(
         'Programming Language :: Python',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
         'License :: OSI Approved :: MIT License'
     ],
     project_urls={
