@@ -50,5 +50,7 @@ def _parse_shapefile(name):
     shp = fiona.BytesCollection(buffer.getvalue())
 
     # Convert it GeoJSON and return it
-    feature_list = [Feature(geometry=d['geometry'], properties=d) for d in shp]
+    feature_list = [
+        Feature(geometry=d['geometry'], properties=d['properties']) for d in shp
+    ]
     return FeatureCollection(feature_list)
