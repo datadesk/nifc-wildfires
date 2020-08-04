@@ -18,6 +18,18 @@ def get_json_perimeters():
     return r.json()
 
 
+def get_nifc_incidents_new():
+    """
+    Get fire incident points from NIFC situation reports.
+
+    Returns a GeoJSON object.
+    """
+    r = requests.get("https://opendata.arcgis.com/datasets/68637d248eb24d0d853342cba02d4af7_0.geojson")
+    if r.status_code != 200:
+        raise Exception(f"Request for data failed with {r.status_code} status code")
+    return r.json()
+
+
 def get_active_perimeters():
     """
     Get perimeters of active fires in a recent 24-hour period.
