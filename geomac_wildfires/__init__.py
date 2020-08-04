@@ -8,7 +8,7 @@ from geojson import Feature, FeatureCollection
 
 def get_json_perimeters():
     """
-    Get geojson perimeters from new 2020 feed.
+    Get geojson fire perimeters from new 2020 feed.
 
     Returns a GeoJSON object.
     """
