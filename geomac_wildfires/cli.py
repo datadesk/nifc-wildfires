@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import click
 from geomac_wildfires import (
+    get_json_perimeters,
     get_active_perimeters,
     get_all_perimeters,
     get_nifc_incidents
@@ -15,6 +16,11 @@ def cmd():
     Returns GeoJSON.
     """
     pass
+
+
+@cmd.command(help="Perimeters of active fires in new 2020 feed")
+def json_perimeters():
+    click.echo(get_json_perimeters())
 
 
 @cmd.command(help="Perimeters of active fires in a recent 24-hour period")

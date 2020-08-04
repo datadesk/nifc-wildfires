@@ -6,6 +6,18 @@ import requests
 from geojson import Feature, FeatureCollection
 
 
+def get_json_perimeters():
+    """
+    Get geojson perimeters from new 2020 feed.
+
+    Returns a GeoJSON object.
+    """
+    r = requests.get("https://opendata.arcgis.com/datasets/5da472c6d27b4b67970acc7b5044c862_0.geojson")
+    if r.status_code != 200:
+        raise Exception(f"Request for data failed with {r.status_code} status code")
+    return r.json()
+
+
 def get_active_perimeters():
     """
     Get perimeters of active fires in a recent 24-hour period.
