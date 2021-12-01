@@ -15,7 +15,7 @@ setup(
     long_description_content_type='text/markdown',
     author='Los Angeles Times Data and Graphics Department',
     author_email='datagraphics@latimes.com',
-    url='http://www.github.com/datadesk/nifc-wildfires',
+    url='http://www.github.com/palewire/nifc-wildfires',
     license="MIT",
     packages=("nifc_wildfires",),
     install_requires=[
@@ -36,9 +36,8 @@ setup(
         'License :: OSI Approved :: MIT License'
     ],
     project_urls={
-        'Maintainer': 'https://github.com/datadesk',
-        'Source': 'https://github.com/datadesk/nifc-wildfires',
-        'Tracker': 'https://github.com/datadesk/nifc-wildfires/issues',
-        'CI': 'https://travis-ci.org/datadesk/nifc-wildfires/'
+        'Maintainer': 'https://github.com/palewire',
+        'Source': 'https://github.com/palewire/nifc-wildfires',
+        'Tracker': 'https://github.com/palewire/nifc-wildfires/issues',
     },
 )
