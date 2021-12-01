@@ -14,7 +14,7 @@ setup(
     long_description=read('README.md'),
     long_description_content_type='text/markdown',
     author='Los Angeles Times Data and Graphics Department',
-    author_email='datagraphics@latimes.com',
+    author_email='datagraphics@caltimes.com',
     url='http://www.github.com/palewire/nifc-wildfires',
     license="MIT",
     packages=("nifc_wildfires",),
