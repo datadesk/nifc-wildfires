@@ -17,7 +17,7 @@ def get_active_perimeters():
 
 def get_incidents():
     """
-    Get fire incident points from NIFC situation reports. Starts from Jan 1st of current year
+    Get year-to-date fire incident points from NIFC situation reports. Includes active and inctive incidents.
 
     Returns a GeoJSON object with point geometry.
     """

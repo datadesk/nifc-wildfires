@@ -16,12 +16,12 @@ def cmd():
     pass
 
 
-@cmd.command(help="Perimeters of active fires in new 2021 feed")
+@cmd.command(help="Perimeters of active fires")
 def active_perimeters():
     click.echo(get_active_perimeters())
 
 
-@cmd.command(help="Fire incident points from NIFC situation reports")
+@cmd.command(help="All YTD fire incident points from NIFC situation reports")
 def incidents():
     click.echo(get_incidents())
 
