@@ -9,8 +9,6 @@ flake8 = "*"
 coverage = "*"
 
 [packages]
-fiona = "*"
-geojson = "*"
 click = "*"
 requests = "*"
 

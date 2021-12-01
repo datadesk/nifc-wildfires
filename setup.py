@@ -8,24 +8,22 @@ def read(fname):
 
 
 setup(
-    name='geomac-wildfires',
+    name='nifc-wildfires',
     version='0.1.14',
     description="Download wildfires data from NIFC",
     long_description=read('README.rst'),
     author='Los Angeles Times Data and Graphics Department',
     author_email='datagraphics@latimes.com',
-    url='http://www.github.com/datadesk/geomac-wildfires',
+    url='http://www.github.com/datadesk/nifc-wildfires',
     license="MIT",
-    packages=("geomac_wildfires",),
+    packages=("nifc_wildfires",),
     install_requires=[
         "requests",
-        "fiona",
-        "geojson",
         "click"
     ],
     entry_points="""
         [console_scripts]
-        geomacwildfires=geomac_wildfires.cli:cmd
+        nifcwldfires=nifc_wildfires.cli:cmd
     """,
     classifiers=[
         'Development Status :: 5 - Production/Stable',
@@ -36,8 +34,8 @@ setup(
     ],
     project_urls={
         'Maintainer': 'https://github.com/datadesk',
-        'Source': 'https://github.com/datadesk/geomac-wildfires',
-        'Tracker': 'https://github.com/datadesk/geomac-wildfires/issues',
-        'CI': 'https://travis-ci.org/datadesk/geomac-wildfires/'
+        'Source': 'https://github.com/datadesk/nifc-wildfires',
+        'Tracker': 'https://github.com/datadesk/nifc-wildfires/issues',
+        'CI': 'https://travis-ci.org/datadesk/nifc-wildfires/'
     },
 )

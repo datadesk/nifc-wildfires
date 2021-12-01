@@ -1,17 +1,17 @@
-geomac-wildfires
+nifc-wildfires
 ================
 
-Download wildfires data from GeoMAC
+Download wildfires data from NIFC
 
-.. image:: https://travis-ci.org/datadesk/geomac-wildfires.svg?branch=master
-    :target: https://travis-ci.org/datadesk/geomac-wildfires
+.. image:: https://travis-ci.org/datadesk/nifc-wildfires.svg?branch=master
+    :target: https://travis-ci.org/datadesk/nifc-wildfires
 
 Installation
 ------------
 
 ::
 
-    $ pipenv install geomac-wildfires
+    $ pipenv install nifc-wildfires
 
 
 Command-line usage
@@ -19,25 +19,23 @@ Command-line usage
 
 ::
 
-    Usage: geomacwildfires [OPTIONS] COMMAND [ARGS]...
+    Usage: nifcwildfires [OPTIONS] COMMAND [ARGS]...
 
-      A command-line interface for downloading wildfire perimeter data from
-      GeoMAC. Returns GeoJSON.
+      A command-line interface for downloading wildfire perimeter and incident points data from
+      NIFC. Returns GeoJSON.
 
     Options:
       --help  Show this message and exit.
 
     Commands:
-      active-perimeters   Perimeters of active fires in a recent 24-hour period
-      all-perimeters      Perimeters of all fires
-      nifc-incidents      Fire incident points from NIFC situation reports
+      active-perimeters  Perimeters of active fires
+      incidents      All fire incident points in 2021, from NIFC situation reports
 
 
-Download data from GeoMAC. ::
+Download data from NIFC. ::
 
-    $ geomacwildfires active-perimeters
-    $ geomacwildfires all-perimeters
-    $ geomacwildfires get-nifc-incidents
+    $ nifcwildfires active-perimeters
+    $ nifcwildfires incidents
 
 
 Python usage
@@ -45,10 +43,9 @@ Python usage
 
 Import the library. ::
 
-    >>> import geomac_wildfires
-    >>> data = geomac_wildfires.get_active_perimeters()
-    >>> data = geomac_wildfires.get_all_perimeters()
-    >>> data = geomac_wildfires.get_nifc_incidents()
+    >>> import nifc_wildfires
+    >>> data = nifc_wildfires.get_active_perimeters()
+    >>> data = nifc_wildfires.get_incidents()
 
 
 Contributing
