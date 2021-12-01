@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
-import io
 import requests
 
 
@@ -18,7 +17,7 @@ def get_current_perimeters():
 
 def get_nifc_incidents():
     """
-    Get fire incident points from NIFC situation reports. Starts from Jan 1st of current year - 
+    Get fire incident points from NIFC situation reports. Starts from Jan 1st of current year -
 
     Returns a GeoJSON object.
     """
@@ -26,6 +25,3 @@ def get_nifc_incidents():
     if r.status_code != 200:
         raise Exception(f"Request for data failed with {r.status_code} status code")
     return r.json()
-
-
-

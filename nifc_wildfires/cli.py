@@ -20,6 +20,7 @@ def cmd():
 def current_perimeters():
     click.echo(get_current_perimeters())
 
+
 @cmd.command(help="Fire incident points from NIFC situation reports")
 def nifc_incidents():
     click.echo(get_nifc_incidents())
