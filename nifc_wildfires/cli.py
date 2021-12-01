@@ -3,14 +3,14 @@
 import click
 from nifc_wildfires import (
     get_current_perimeters,
-    get_nifc_incidents
+    get_incidents
 )
 
 
 @click.group()
 def cmd():
     """
-    A command-line interface for downloading wildfire perimeter data from GeoMAC.
+    A command-line interface for downloading wildfire perimeter and incident points data from NIFC.
     Returns GeoJSON.
     """
     pass
@@ -22,8 +22,8 @@ def current_perimeters():
 
 
 @cmd.command(help="Fire incident points from NIFC situation reports")
-def nifc_incidents():
-    click.echo(get_nifc_incidents())
+def incidents():
+    click.echo(get_incidents())
 
 
 if __name__ == '__main__':

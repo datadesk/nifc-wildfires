@@ -23,7 +23,7 @@ setup(
     ],
     entry_points="""
         [console_scripts]
-        geomacwildfires=nifc_wildfires.cli:cmd
+        nifcwldfires=nifc_wildfires.cli:cmd
     """,
     classifiers=[
         'Development Status :: 5 - Production/Stable',
@@ -34,8 +34,8 @@ setup(
     ],
     project_urls={
         'Maintainer': 'https://github.com/datadesk',
-        'Source': 'https://github.com/datadesk/geomac-wildfires',
-        'Tracker': 'https://github.com/datadesk/geomac-wildfires/issues',
-        'CI': 'https://travis-ci.org/datadesk/geomac-wildfires/'
+        'Source': 'https://github.com/datadesk/nifc-wildfires',
+        'Tracker': 'https://github.com/datadesk/nifc-wildfires/issues',
+        'CI': 'https://travis-ci.org/datadesk/nifc-wildfires/'
     },
 )

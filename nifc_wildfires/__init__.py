@@ -5,7 +5,7 @@ import requests
 
 def get_current_perimeters():
     """
-    Get geojson fire perimeters from new 2021 feed.
+    Get fire perimeters of all active fires from NIFC
 
     Returns a GeoJSON object.
     """
@@ -15,9 +15,9 @@ def get_current_perimeters():
     return r.json()
 
 
-def get_nifc_incidents():
+def get_incidents():
     """
-    Get fire incident points from NIFC situation reports. Starts from Jan 1st of current year -
+    Get fire incident points from NIFC situation reports. Starts from Jan 1st of current year
 
     Returns a GeoJSON object.
     """

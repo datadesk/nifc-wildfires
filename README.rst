@@ -3,8 +3,8 @@ nifc-wildfires
 
 Download wildfires data from NIFC
 
-.. image:: https://travis-ci.org/datadesk/geomac-wildfires.svg?branch=master
-    :target: https://travis-ci.org/datadesk/geomac-wildfires
+.. image:: https://travis-ci.org/datadesk/nifc-wildfires.svg?branch=master
+    :target: https://travis-ci.org/datadesk/nifc-wildfires
 
 Installation
 ------------
@@ -21,21 +21,21 @@ Command-line usage
 
     Usage: nifcwildfires [OPTIONS] COMMAND [ARGS]...
 
-      A command-line interface for downloading wildfire perimeter data from
+      A command-line interface for downloading wildfire perimeter and incident points data from
       NIFC. Returns GeoJSON.
 
     Options:
       --help  Show this message and exit.
 
     Commands:
-      current-perimeters   Perimeters of active fires
-      nifc-incidents      Fire incident points from NIFC situation reports
+      current-perimeters  Perimeters of active fires
+      incidents      All fire incident points in 2021, from NIFC situation reports
 
 
 Download data from NIFC. ::
 
-    $ geomacwildfires current-perimeters
-    $ geomacwildfires get-nifc-incidents
+    $ nifcwildfires current-perimeters
+    $ nifcwildfires incidents
 
 
 Python usage
@@ -44,8 +44,8 @@ Python usage
 Import the library. ::
 
     >>> import nifc_wildfires
-    >>> data = geomac_wildfires.get_current_perimeters()
-    >>> data = geomac_wildfires.get_nifc_incidents()
+    >>> data = nifc_wildfires.get_current_perimeters()
+    >>> data = nifc_wildfires.get_incidents()
 
 
 Contributing
