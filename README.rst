@@ -28,13 +28,13 @@ Command-line usage
       --help  Show this message and exit.
 
     Commands:
-      current-perimeters  Perimeters of active fires
+      active-perimeters  Perimeters of active fires
       incidents      All fire incident points in 2021, from NIFC situation reports
 
 
 Download data from NIFC. ::
 
-    $ nifcwildfires current-perimeters
+    $ nifcwildfires active-perimeters
     $ nifcwildfires incidents
 
 
@@ -44,7 +44,7 @@ Python usage
 Import the library. ::
 
     >>> import nifc_wildfires
-    >>> data = nifc_wildfires.get_current_perimeters()
+    >>> data = nifc_wildfires.get_active_perimeters()
     >>> data = nifc_wildfires.get_incidents()
 
 

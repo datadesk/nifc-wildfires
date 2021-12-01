@@ -3,11 +3,11 @@
 import requests
 
 
-def get_current_perimeters():
+def get_active_perimeters():
     """
     Get fire perimeters of all active fires from NIFC
 
-    Returns a GeoJSON object.
+    Returns a GeoJSON object with multipolygon geometry.
     """
     r = requests.get("https://opendata.arcgis.com/datasets/2191f997056547bd9dc530ab9866ab61_0.geojson")
     if r.status_code != 200:
@@ -19,7 +19,7 @@ def get_incidents():
     """
     Get fire incident points from NIFC situation reports. Starts from Jan 1st of current year
 
-    Returns a GeoJSON object.
+    Returns a GeoJSON object with point geometry.
     """
     r = requests.get("https://opendata.arcgis.com/datasets/51192330d3f14664bd69b6faed0fdf05_0.geojson")
     if r.status_code != 200:

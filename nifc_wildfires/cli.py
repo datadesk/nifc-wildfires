@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import click
 from nifc_wildfires import (
-    get_current_perimeters,
+    get_active_perimeters,
     get_incidents
 )
 
@@ -17,8 +17,8 @@ def cmd():
 
 
 @cmd.command(help="Perimeters of active fires in new 2021 feed")
-def current_perimeters():
-    click.echo(get_current_perimeters())
+def active_perimeters():
+    click.echo(get_active_perimeters())
 
 
 @cmd.command(help="Fire incident points from NIFC situation reports")
