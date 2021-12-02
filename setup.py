@@ -24,7 +24,7 @@ setup(
     ],
     entry_points="""
         [console_scripts]
-        nifcwldfires=nifc_wildfires.cli:cmd
+        nifcwildfires=nifc_wildfires.cli:cmd
     """,
     classifiers=[
         'Development Status :: 5 - Production/Stable',
