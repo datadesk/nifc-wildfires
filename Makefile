@@ -1,9 +1,13 @@
 .PHONY: test ship
+lint:
+	pipenv run flake8 ./
 
 test:
-	pipenv run flake8 ./
 	pipenv run coverage run test.py
 	pipenv run coverage report -m
+
+scrape:
+	pipenv run nifcwildfires active-perimeters > data/perimeters.json
 
 
 ship:
