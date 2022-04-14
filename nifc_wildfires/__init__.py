@@ -4,8 +4,7 @@ import requests
 
 
 def get_active_perimeters():
-    """
-    Get fire perimeters of all active fires from NIFC
+    """Get fire perimeters of all active fires from NIFC.
 
     Returns a GeoJSON object with multipolygon geometry.
     """
@@ -16,8 +15,7 @@ def get_active_perimeters():
 
 
 def get_incidents():
-    """
-    Get year-to-date fire incident points from NIFC situation reports. Includes active and inctive incidents.
+    """Get year-to-date fire incident points from NIFC situation reports. Includes active and inctive incidents.
 
     Returns a GeoJSON object with point geometry.
     """
