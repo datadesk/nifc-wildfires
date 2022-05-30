@@ -3,7 +3,7 @@
 
 # nifc-wildfires
 
-Download wildfires data from [National Interagency Fire Center](https://www.nifc.gov/)
+Download wildfires data from the [National Interagency Fire Center](https://www.nifc.gov/)
 
 ```{contents} Table of contents
 :local:
