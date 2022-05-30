@@ -25,7 +25,7 @@ jobs:
 
       - id: run
         name: Run
-        run: pipenv run flake8 nasa_wildfires
+        run: pipenv run flake8 nifc_wildfires
 
   test-python:
     strategy:
