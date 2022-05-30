@@ -1,4 +1,4 @@
-Download wildfires data from NIFC
+Download wildfires data from [National Interagency Fire Center](https://www.nifc.gov/)
 
 ## Installation
 
@@ -34,9 +34,10 @@ nifcwildfires incidents
 Import the library and go.
 
 ```python
->>> import nifc_wildfires
->>> data = nifc_wildfires.get_active_perimeters()
->>> data = nifc_wildfires.get_incidents()
+import nifc_wildfires
+
+data = nifc_wildfires.get_active_perimeters()
+data = nifc_wildfires.get_incidents()
 ```
 
 ## Contributing
@@ -50,13 +51,7 @@ pipenv install --dev
 Run tests.
 
 ```sh
-make test
-```
-
-Shipping new version to PyPI.
-
-```sh
-make ship
+pipenv run python test.py
 ```
 
 ## Developing the CLI
@@ -64,5 +59,5 @@ make ship
 The command-line interface is implemented using Click and setuptools. To install it locally for development inside your virtual environment, run the following installation command, as [prescribed by the Click documentation](https://click.palletsprojects.com/en/7.x/setuptools/#setuptools-integration).
 
 ```sh
-pip install --editable .
+pipenv runc pip install --editable .
 ```

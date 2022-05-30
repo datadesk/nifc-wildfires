@@ -1,10 +1,6 @@
-#! /usr/bin/env python
-# -*- coding: utf-8 -*-
 import click
-from nifc_wildfires import (
-    get_active_perimeters,
-    get_incidents
-)
+
+from nifc_wildfires import get_active_perimeters, get_incidents
 
 
 @click.group()
@@ -26,5 +22,5 @@ def incidents():
     click.echo(get_incidents())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cmd()

@@ -1,14 +1,9 @@
-#! /usr/bin/env python
-# -*- coding: utf-8 -*-
 import unittest
-from nifc_wildfires import (
-    get_active_perimeters,
-    get_incidents
-)
+
+from nifc_wildfires import get_active_perimeters, get_incidents
 
 
 class NifcUnitTest(unittest.TestCase):
-
     def test_active_perimeters(self):
         get_active_perimeters()
 
@@ -16,5 +11,5 @@ class NifcUnitTest(unittest.TestCase):
         get_incidents()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
