@@ -41,7 +41,7 @@ def local_version(version):
 
 setup(
     name="nifc-wildfires",
-    description="Download wildfires data from National Interagency Fire Center",
+    description="Download wildfires data from the National Interagency Fire Center",
     long_description=read("README.md"),
     long_description_content_type="text/markdown",
     author="Ben Welsh",
