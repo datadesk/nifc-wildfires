@@ -1,3 +1,0 @@
-[run]
-include =
-    nifc_wildfires/__init__.py
