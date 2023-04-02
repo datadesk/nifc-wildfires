@@ -7,7 +7,7 @@ def get_active_perimeters():
     Returns a GeoJSON object with multipolygon geometry.
     """
     r = requests.get(
-        "https://opendata.arcgis.com/datasets/2191f997056547bd9dc530ab9866ab61_0.geojson"
+        "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson"
     )
     if r.status_code != 200:
         raise Exception(f"Request for data failed with {r.status_code} status code")
@@ -20,7 +20,7 @@ def get_incidents():
     Returns a GeoJSON object with point geometry.
     """
     r = requests.get(
-        "https://opendata.arcgis.com/datasets/51192330d3f14664bd69b6faed0fdf05_0.geojson"
+        "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_YearToDate/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson"
     )
     if r.status_code != 200:
         raise Exception(f"Request for data failed with {r.status_code} status code")
