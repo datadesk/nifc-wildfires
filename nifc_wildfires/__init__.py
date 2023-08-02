@@ -20,7 +20,7 @@ def get_incidents():
     Returns a GeoJSON object with point geometry.
     """
     r = requests.get(
-        "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_YearToDate/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson"
+        "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson"
     )
     if r.status_code != 200:
         raise Exception(f"Request for data failed with {r.status_code} status code")
