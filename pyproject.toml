@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nifc-wildfires"
+description = "Download wildfires data from the National Interagency Fire Center"
+readme = "README.md"
+authors = [
+    {name = "Ben Welsh", email = "b@palewi.re"},
+]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+requires-python = ">=3.7"
+dependencies = ["requests", "click"]
+dynamic = ["version"]
+
+[project.scripts]
+nifcwildfires = "nifc_wildfires.cli:cmd"
+
+[project.urls]
+Source = "https://github.com/datadesk/nifc-wildfires"
+Tracker = "https://github.com/datadesk/nifc-wildfires/issues"
+
+[tool.setuptools]
+packages = ["nifc_wildfires"]
+
+[tool.setuptools_scm]
+
+[project.optional-dependencies]
+deploy = [
+    "twine",
+    "wheel",
+    "pre-commit",
+]
+
+docs = [
+    "sphinx",
+    "sphinx-autobuild",
+    "sphinx-palewire-theme",
+    "myst-parser",
+]
+
+[tool.ruff]
+exclude = [
+    "docs",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "W",]
+ignore = ["E501", "F403",]
+
+[tool.flake8]
+max-line-length = 119
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.10",
+]

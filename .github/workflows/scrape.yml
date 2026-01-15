@@ -11,33 +11,42 @@ jobs:
     steps:
       - id: checkout
         name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Install pipenv
-        run: pipx install pipenv
-
-      - uses: actions/setup-python@v3
+      - id: install-uv
+        name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: '3.9'
-          cache: 'pipenv'
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: '**/pyproject.toml'
 
-      - id: make
-        name: Run scrape command
+
+      - id: install-python
+        name: Install Python
+        run: uv python install 3.9
+
+      - name: Install Python dependencies
+        run: uv sync   
+
+      - name: Run scrape command
         run: |
-          pipenv run python setup.py install
-          pipenv run nifcwildfires active-perimeters > data/perimeters.json
+          uv run nifcwildfires active-perimeters > data/perimeters.json
+        shell: bash
         env:
           AIRNOW_KEYS: ${{ secrets.AIRNOW_KEYS }}
+
+      - name: Datestamp
+        run: date > data/timestamp.txt
         shell: bash
 
-      - id: commit
-        name: Commit results
+      - name: Commit results
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "actions@github.com"
           git config pull.rebase false
           git status
           git pull origin $GITHUB_REF
-          git add ./
-          git commit -m "Scrape" && git push || true
+          git add ./data
+          git commit -m "Scrape" --author="palewire <palewire@users.noreply.github.com>" && git push || true
         shell: bash
