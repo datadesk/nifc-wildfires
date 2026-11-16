@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Add a `last-edited` command that prints when NIFC last edited a layer, plus
+  `--timeout` and `--verbose` options on every command.
 - Add `NIFCClient`, a class that holds the settings for downloading (the fetch
   function, strictness, timeout, page size and the limits on pages and restarts)
   and does the work in its methods. The existing functions keep their names,
@@ -35,6 +37,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   keep the old behavior.
 ### Changed
 
+- Show a failed download on the command line as a short `Error:` message and a
+  non-zero exit code, instead of a traceback. `--verbose` lists every problem
+  found in data that was not in the expected shape.
 - Adopt the palewire/python-open-source-template tooling: uv, Ruff, ty, pytest,
   a Makefile and updated workflows. The minimum supported Python is now 3.11.
 

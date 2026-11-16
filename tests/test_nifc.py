@@ -254,7 +254,9 @@ def test_live_paging_returns_everything(monkeypatch):
         if "kept changing" in str(error):
             pytest.skip("NIFC data kept changing during the download")
         raise
-    assert abs(len(paged["features"]) - len(whole["features"])) <= 2
+    # Live edits can add or remove a few incidents between the two downloads.
+    allowed_drift = max(5, len(whole["features"]) // 50)
+    assert abs(len(paged["features"]) - len(whole["features"])) <= allowed_drift
 
 
 @pytest.mark.integration

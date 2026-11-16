@@ -95,7 +95,8 @@ def get_active_perimeters(
     Raises:
         NIFCValidationError: If strict and the data does not have the expected
             shape, or if a reply has no list of features at all.
-        NIFCError: If NIFC cannot be reached or sends back an error.
+        NIFCError: If NIFC sends back an error or a failed status. Problems
+            reaching NIFC at all raise the ``requests`` library's own errors.
 
     Examples:
         >>> data = get_active_perimeters()
@@ -141,7 +142,8 @@ def get_incidents(
     Raises:
         NIFCValidationError: If strict and the data does not have the expected
             shape, or if a reply has no list of features at all.
-        NIFCError: If NIFC cannot be reached or sends back an error.
+        NIFCError: If NIFC sends back an error or a failed status. Problems
+            reaching NIFC at all raise the ``requests`` library's own errors.
 
     Examples:
         >>> data = get_incidents()
@@ -168,7 +170,8 @@ def get_active_perimeters_last_edited(*, get: Fetcher | None = None) -> datetime
 
     Raises:
         NIFCValidationError: If NIFC does not report a usable edit time.
-        NIFCError: If NIFC cannot be reached or sends back an error.
+        NIFCError: If NIFC sends back an error or a failed status. Problems
+            reaching NIFC at all raise the ``requests`` library's own errors.
 
     Examples:
         >>> get_active_perimeters_last_edited().tzinfo
@@ -192,7 +195,8 @@ def get_incidents_last_edited(*, get: Fetcher | None = None) -> datetime:
 
     Raises:
         NIFCValidationError: If NIFC does not report a usable edit time.
-        NIFCError: If NIFC cannot be reached or sends back an error.
+        NIFCError: If NIFC sends back an error or a failed status. Problems
+            reaching NIFC at all raise the ``requests`` library's own errors.
 
     Examples:
         >>> get_incidents_last_edited().tzinfo
