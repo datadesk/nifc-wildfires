@@ -2,21 +2,22 @@
 
 This repository publishes `nifc-wildfires`, a small Python library and
 command-line tool that downloads wildfire perimeters and incident points from
-the National Interagency Fire Center (NIFC) as GeoJSON. It also runs a daily
-scrape that saves the latest perimeters in `data/`.
+the National Interagency Fire Center (NIFC) as GeoJSON. It also has a scrape
+workflow, run by hand only, that saves the latest perimeters in `data/`.
 
 ## Repository Structure
 
 - `nifc_wildfires/`: The library (`__init__.py`) and the Click command line (`cli.py`).
 - `tests/`: Tests. The NIFC tests call the live service and are marked `integration`.
-- `data/`: Output of the daily scrape. Never hand-edit these files.
+- `data/`: Output of the manual scrape. Never hand-edit these files.
 - `docs/`: Sphinx documentation source.
 - `.github/workflows/`: Continuous integration, documentation, release and scrape workflows.
 - `pyproject.toml`: Package metadata and tool configuration.
 - `Makefile`: Common development and verification commands.
 
-The `scrape.yml` workflow runs `nifcwildfires active-perimeters` every day and
-commits the result. Keep that command name and its output format stable.
+The `scrape.yml` workflow runs `nifcwildfires active-perimeters` and commits the
+result. It runs only when someone starts it, because a daily schedule bloated
+the repository. Keep that command name and its output format stable.
 
 Keep only publishable, user-facing optional features in
 `[project.optional-dependencies]`. Development, test, documentation, and
