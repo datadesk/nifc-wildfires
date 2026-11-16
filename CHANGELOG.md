@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Add `where`, `out_fields` and `geometry_precision` settings to
+  `get_active_perimeters` and `get_incidents`, and matching `--where`,
+  `--out-fields` and `--geometry-precision` command-line options. The defaults
+  keep the old behavior.
 ### Changed
 
 - Adopt the palewire/python-open-source-template tooling: uv, Ruff, ty, pytest,

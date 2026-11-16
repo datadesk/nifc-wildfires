@@ -13,9 +13,20 @@ FAKE_DATA = {"type": "FeatureCollection", "features": []}
 @pytest.fixture
 def runner(monkeypatch):
     """Return a command-line runner that never touches the network."""
-    monkeypatch.setattr(cli, "get_active_perimeters", lambda: {"from": "perimeters"})
-    monkeypatch.setattr(cli, "get_incidents", lambda: {"from": "incidents"})
-    return CliRunner()
+    calls = {}
+
+    def fake(name):
+        def get(*args):
+            calls[name] = args
+            return {"from": name}
+
+        return get
+
+    monkeypatch.setattr(cli, "get_active_perimeters", fake("perimeters"))
+    monkeypatch.setattr(cli, "get_incidents", fake("incidents"))
+    runner = CliRunner()
+    runner.calls = calls
+    return runner
 
 
 @pytest.mark.unit
@@ -47,3 +58,37 @@ def test_help_lists_both_commands(runner):
 def test_unknown_command_fails(runner):
     """Test that an unknown command exits with an error."""
     assert runner.invoke(cli.cmd, ["nope"]).exit_code != 0
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("command", "name"),
+    [("active-perimeters", "perimeters"), ("incidents", "incidents")],
+)
+def test_defaults_ask_for_everything(runner, command, name):
+    """Test that the commands download everything unless told otherwise."""
+    runner.invoke(cli.cmd, [command])
+    assert runner.calls[name] == ("1=1", "*", None)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("command", "name"),
+    [("active-perimeters", "perimeters"), ("incidents", "incidents")],
+)
+def test_options_are_passed_along(runner, command, name):
+    """Test that the filter, field and precision options reach the download."""
+    result = runner.invoke(
+        cli.cmd,
+        [
+            command,
+            "--where",
+            "a=1",
+            "--out-fields",
+            "OBJECTID",
+            "--geometry-precision",
+            "5",
+        ],
+    )
+    assert result.exit_code == 0
+    assert runner.calls[name] == ("a=1", "OBJECTID", 5)

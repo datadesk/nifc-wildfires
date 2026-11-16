@@ -133,6 +133,41 @@ def test_every_page_is_downloaded(fake_get, top_level):
 
 
 @pytest.mark.unit
+def test_options_shape_the_query(fake_get):
+    """Test that the filter, fields and precision are sent to NIFC."""
+    calls, _ = fake_get
+    nifc_wildfires.get_active_perimeters(
+        where="attr_IncidentTypeCategory='WF'",
+        out_fields="OBJECTID",
+        geometry_precision=5,
+    )
+    params = calls[0][1]["params"]
+    assert params["where"] == "attr_IncidentTypeCategory='WF'"
+    assert params["outFields"] == "OBJECTID"
+    assert params["geometryPrecision"] == 5
+
+
+@pytest.mark.unit
+def test_precision_is_left_out_by_default(fake_get):
+    """Test that coordinates are not rounded unless asked."""
+    calls, _ = fake_get
+    nifc_wildfires.get_incidents()
+    assert "geometryPrecision" not in calls[0][1]["params"]
+
+
+@pytest.mark.integration
+def test_live_filter_and_fields():
+    """Test that a live filter and field list change what comes back."""
+    data = nifc_wildfires.get_active_perimeters(
+        where="attr_IncidentTypeCategory='WF'",
+        out_fields="OBJECTID,poly_IncidentName",
+        geometry_precision=5,
+    )
+    for feature in data["features"]:
+        assert set(feature["properties"]) <= {"OBJECTID", "poly_IncidentName"}
+
+
+@pytest.mark.unit
 def test_paging_asks_for_a_stable_order_and_page_size(fake_get):
     """Test that each page request sorts the same way and sets a page size."""
     calls, _ = fake_get
