@@ -289,3 +289,58 @@ def test_connection_errors_are_short_unless_verbose(web, run):
     assert "very long details" not in short.stderr
     detailed = run("incidents", "--verbose")
     assert "very long details" in detailed.stderr
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("command", "field"),
+    [
+        ("active-perimeters", "attr_IncidentTypeCategory"),
+        ("incidents", "IncidentTypeCategory"),
+    ],
+)
+def test_incident_type_flags_build_the_filter(web, run, command, field):
+    """Test that the type flags reach the request, in any letter case."""
+    web.reply = collection()
+    run(command, "--incident-type", "wf", "--incident-type", "CX")
+    assert web.calls[0][1]["where"] == f"{field} IN ('CX', 'WF')"
+    run(command, "--exclude-incident-type", "rx")
+    assert web.calls[1][1]["where"] == f"({field} IS NULL OR {field} NOT IN ('RX'))"
+
+
+@pytest.mark.unit
+def test_incident_type_flags_join_where(web, run):
+    """Test that --where and a type flag are both applied."""
+    web.reply = collection()
+    run("incidents", "--where", "OBJECTID > 5", "--exclude-incident-type", "RX")
+    assert web.calls[0][1]["where"].startswith("(OBJECTID > 5) AND ")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "bad",
+    [
+        ["--incident-type", "ZZ"],
+        ["--exclude-incident-type", "ZZ"],
+        ["--incident-type", "WF", "--exclude-incident-type", "RX"],
+    ],
+)
+def test_bad_incident_type_flags_are_a_usage_error(web, run, bad):
+    """Test that unknown codes, or keeping and excluding together, are rejected."""
+    result = run("incidents", *bad)
+    assert result.exit_code == 2
+    assert "Error" in result.output
+    assert web.calls == []
+
+
+@pytest.mark.unit
+def test_keep_and_exclude_error_says_why(web, run):
+    """Test that the clash message is not blank."""
+    result = run("incidents", "--incident-type", "WF", "--exclude-incident-type", "RX")
+    assert "not both" in result.output
+
+
+@pytest.mark.unit
+def test_incidents_help_says_prescribed_burns_are_included(run):
+    """Test that the command help makes clear that prescribed burns are in there."""
+    assert "prescribed burns" in " ".join(run("incidents", "--help").output.split())

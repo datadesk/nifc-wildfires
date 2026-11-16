@@ -130,7 +130,9 @@ class NIFCClient:
     def get_incidents(self, options: QueryOptions | None = None) -> dict[str, Any]:
         """Get year-to-date fire incident points from NIFC situation reports.
 
-        Includes active and inactive incidents.
+        Includes active and inactive incidents, and prescribed burns (type
+        ``RX``), which are fires lit on purpose and can be most of the points.
+        Leave them out with ``exclude_incident_types`` in the options.
 
         Args:
             options: The settings that shape the query. The default returns every
@@ -292,7 +294,7 @@ class NIFCClient:
         for _ in range(self.max_pages):
             params: dict[str, Any] = {
                 "outFields": options.out_fields,
-                "where": options.where,
+                "where": options.where_for(layer),
                 "orderByFields": "OBJECTID",
                 "resultOffset": offset,
                 "resultRecordCount": self.page_size,

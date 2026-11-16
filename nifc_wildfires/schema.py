@@ -1,7 +1,7 @@
 """Typed objects for what callers ask for and what NIFC sends back."""
 
 from enum import StrEnum
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, Self
 
 from pydantic import (
     BaseModel,
@@ -14,6 +14,30 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
+
+class IncidentType(StrEnum):
+    """The kinds of incident NIFC labels its records with.
+
+    Prescribed burns are fires lit on purpose, to manage land. They are in the
+    incident points by default, and are most of them at the time of writing, so
+    leave them out with ``exclude_incident_types`` if you want wildfires only.
+
+    NIFC's layers do not define these codes. ``WF`` and ``RX`` are the standard
+    labels for wildfire and prescribed fire. ``CX`` is understood to be a
+    complex, which is several fires managed together, but NIFC's metadata does
+    not say so, so confirm before relying on it.
+
+    Examples:
+        >>> IncidentType.PRESCRIBED_FIRE.value
+        'RX'
+        >>> IncidentType("WF") is IncidentType.WILDFIRE
+        True
+    """
+
+    WILDFIRE = "WF"
+    PRESCRIBED_FIRE = "RX"
+    COMPLEX = "CX"
 
 
 class Layer(StrEnum):
@@ -44,6 +68,26 @@ class Layer(StrEnum):
             return frozenset({"Polygon", "MultiPolygon"})
         return frozenset({"Point"})
 
+    @property
+    def incident_type_field(self) -> str:
+        """The name of the field that holds the incident type in this layer.
+
+        The two layers spell it differently, which is easy to get wrong in a
+        hand-written filter.
+
+        Returns:
+            The field name.
+
+        Examples:
+            >>> Layer.INCIDENTS.incident_type_field
+            'IncidentTypeCategory'
+            >>> Layer.PERIMETERS.incident_type_field
+            'attr_IncidentTypeCategory'
+        """
+        if self is Layer.PERIMETERS:
+            return "attr_IncidentTypeCategory"
+        return "IncidentTypeCategory"
+
 
 class QueryOptions(BaseModel):
     """The settings that shape which data a download returns.
@@ -57,15 +101,21 @@ class QueryOptions(BaseModel):
         out_fields: The fields to return, as a comma-separated string.
         geometry_precision: The number of decimal places to keep in coordinates,
             or None to keep everything NIFC sends.
+        incident_types: If given, return only these kinds of incident.
+        exclude_incident_types: Leave out these kinds of incident. Records with
+            no incident type are kept. This cannot be combined with
+            ``incident_types``.
 
     Examples:
         >>> options = QueryOptions(
-        ...     where="attr_IncidentTypeCategory='WF'",
         ...     out_fields="OBJECTID,poly_IncidentName",
         ...     geometry_precision=5,
+        ...     incident_types={IncidentType.WILDFIRE},
         ... )
         >>> QueryOptions().out_fields
         '*'
+        >>> QueryOptions(exclude_incident_types={"RX"}).where_for(Layer.INCIDENTS)
+        "(IncidentTypeCategory IS NULL OR IncidentTypeCategory NOT IN ('RX'))"
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -73,6 +123,67 @@ class QueryOptions(BaseModel):
     where: str = Field(default="1=1", min_length=1)
     out_fields: str = Field(default="*", min_length=1)
     geometry_precision: int | None = Field(default=None, ge=0)
+    incident_types: frozenset[IncidentType] | None = None
+    exclude_incident_types: frozenset[IncidentType] = frozenset()
+
+    @model_validator(mode="after")
+    def check_incident_types(self) -> Self:
+        """Reject incident type settings that make no sense together.
+
+        Returns:
+            The same options.
+
+        Raises:
+            ValueError: If ``incident_types`` is empty, or is combined with
+                ``exclude_incident_types``.
+
+        Examples:
+            >>> QueryOptions(incident_types=set())  # doctest: +IGNORE_EXCEPTION_DETAIL
+            Traceback (most recent call last):
+            ...
+            pydantic_core._pydantic_core.ValidationError: incident_types cannot be empty
+        """
+        if self.incident_types is not None and not self.incident_types:
+            raise ValueError(
+                "incident_types cannot be empty. Leave it out to keep every type."
+            )
+        if self.incident_types and self.exclude_incident_types:
+            raise ValueError("Use incident_types or exclude_incident_types, not both.")
+        return self
+
+    def where_for(self, layer: Layer) -> str:
+        """Build the filter to send to NIFC for a layer.
+
+        This joins the ``where`` filter with any incident type settings, using the
+        field name that this layer calls the incident type.
+
+        Args:
+            layer: The layer the filter is for.
+
+        Returns:
+            The filter. With no incident type settings it is ``where`` as given.
+
+        Examples:
+            >>> QueryOptions(incident_types={"WF"}).where_for(Layer.PERIMETERS)
+            "attr_IncidentTypeCategory IN ('WF')"
+            >>> QueryOptions(where="OBJECTID > 5").where_for(Layer.INCIDENTS)
+            'OBJECTID > 5'
+        """
+        field = layer.incident_type_field
+        clauses = []
+        if self.incident_types:
+            codes = ", ".join(f"'{t.value}'" for t in sorted(self.incident_types))
+            clauses.append(f"{field} IN ({codes})")
+        if self.exclude_incident_types:
+            codes = ", ".join(
+                f"'{t.value}'" for t in sorted(self.exclude_incident_types)
+            )
+            clauses.append(f"({field} IS NULL OR {field} NOT IN ({codes}))")
+        if not clauses:
+            return self.where
+        if self.where != "1=1":
+            clauses.insert(0, f"({self.where})")
+        return " AND ".join(clauses)
 
 
 class Reply(Protocol):
