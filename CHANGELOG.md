@@ -15,6 +15,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Raise a clear `NIFCError` when NIFC replies with an error message, invalid
+  JSON or something other than a list of features. Before, an error message
+  inside a successful reply was returned as if it were fire data.
 - Print valid JSON from the `active-perimeters` and `incidents` commands. They
   previously printed a Python dictionary with single quotes, which JSON tools
   could not read.

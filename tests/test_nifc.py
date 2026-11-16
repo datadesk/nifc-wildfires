@@ -10,13 +10,16 @@ FAKE_DATA = {"type": "FeatureCollection", "features": []}
 class FakeResponse:
     """A stand-in for a response from the NIFC service."""
 
-    def __init__(self, status_code=200, data=None):
+    def __init__(self, status_code=200, data=None, invalid=False):
         """Store the status code and data to hand back."""
         self.status_code = status_code
         self.data = FAKE_DATA if data is None else data
+        self.invalid = invalid
 
     def json(self):
-        """Return the fake data."""
+        """Return the fake data, or fail as a broken reply would."""
+        if self.invalid:
+            raise ValueError("not JSON")
         return self.data
 
 
@@ -55,10 +58,8 @@ def test_request_asks_for_everything_as_geojson_with_a_timeout(fake_get):
     """Test the query asks for all rows and fields as GeoJSON, and can time out."""
     calls, _ = fake_get
     nifc_wildfires.get_incidents()
-    url, kwargs = calls[0]
-    assert "outFields=*" in url
-    assert "where=1%3D1" in url
-    assert "f=geojson" in url
+    _, kwargs = calls[0]
+    assert kwargs["params"] == {"outFields": "*", "where": "1=1", "f": "geojson"}
     assert kwargs["timeout"] == nifc_wildfires.TIMEOUT
 
 
@@ -68,8 +69,36 @@ def test_failed_request_raises_with_the_status_code(fake_get, function):
     """Test that a non-200 answer raises an error naming the status code."""
     _, state = fake_get
     state["response"] = FakeResponse(status_code=503)
-    with pytest.raises(Exception, match="503"):
+    with pytest.raises(nifc_wildfires.NIFCError, match="503"):
         getattr(nifc_wildfires, function)()
+
+
+@pytest.mark.unit
+def test_error_reply_with_a_200_status_raises(fake_get):
+    """Test that an error message inside a successful reply is not returned as data."""
+    _, state = fake_get
+    state["response"] = FakeResponse(data={"error": {"code": 400, "message": "bad"}})
+    with pytest.raises(nifc_wildfires.NIFCError, match="API error"):
+        nifc_wildfires.get_incidents()
+
+
+@pytest.mark.unit
+def test_invalid_json_raises(fake_get):
+    """Test that a reply that is not JSON raises a clear error."""
+    _, state = fake_get
+    state["response"] = FakeResponse(invalid=True)
+    with pytest.raises(nifc_wildfires.NIFCError, match="invalid JSON"):
+        nifc_wildfires.get_incidents()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("data", [["a"], {"type": "FeatureCollection"}])
+def test_unexpected_reply_raises(fake_get, data):
+    """Test that a reply that is not a list of features raises a clear error."""
+    _, state = fake_get
+    state["response"] = FakeResponse(data=data)
+    with pytest.raises(nifc_wildfires.NIFCError):
+        nifc_wildfires.get_incidents()
 
 
 @pytest.mark.integration

@@ -8,6 +8,46 @@ BASE_URL = "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services"
 TIMEOUT = 60
 
 
+class NIFCError(Exception):
+    """Raised when NIFC cannot be reached or sends back something unexpected."""
+
+
+def _get_json(url: str, params: dict[str, Any]) -> dict[str, Any]:
+    """Make one request to NIFC and return its reply as a dictionary.
+
+    NIFC reports many errors as a normal successful reply with an error message
+    inside, so this checks for that as well as for failed requests.
+
+    Args:
+        url: The address to request.
+        params: The query parameters to send.
+
+    Returns:
+        The reply parsed into a dictionary.
+
+    Raises:
+        NIFCError: If the request fails, the reply is not a JSON object, or the
+            reply contains an error message.
+
+    Examples:
+        >>> layer = "WFIGS_Incident_Locations_Current/FeatureServer/0"
+        >>> _get_json(f"{BASE_URL}/{layer}", {"f": "json"})["name"]
+        'WFIGS_Incident_Locations_Current'
+    """
+    r = requests.get(url, params=params, timeout=TIMEOUT)
+    if r.status_code != 200:
+        raise NIFCError(f"Request for data failed with {r.status_code} status code")
+    try:
+        payload = r.json()
+    except ValueError as error:
+        raise NIFCError("NIFC returned invalid JSON.") from error
+    if not isinstance(payload, dict):
+        raise NIFCError("NIFC returned an unexpected response.")
+    if "error" in payload:
+        raise NIFCError(f"NIFC reported an API error: {payload['error']}")
+    return payload
+
+
 def _get_geojson(service: str) -> dict[str, Any]:
     """Request every feature from one NIFC feature service as GeoJSON.
 
@@ -18,20 +58,20 @@ def _get_geojson(service: str) -> dict[str, Any]:
         The GeoJSON response parsed into a dictionary.
 
     Raises:
-        Exception: If NIFC answers with anything other than a 200 status code.
+        NIFCError: If the request fails or the reply is not a list of features.
 
     Examples:
         >>> data = _get_geojson("WFIGS_Incident_Locations_Current")
         >>> data["type"]
         'FeatureCollection'
     """
-    r = requests.get(
-        f"{BASE_URL}/{service}/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson",
-        timeout=TIMEOUT,
+    data = _get_json(
+        f"{BASE_URL}/{service}/FeatureServer/0/query",
+        {"outFields": "*", "where": "1=1", "f": "geojson"},
     )
-    if r.status_code != 200:
-        raise Exception(f"Request for data failed with {r.status_code} status code")
-    return r.json()
+    if not isinstance(data.get("features"), list):
+        raise NIFCError("NIFC response is missing its feature list.")
+    return data
 
 
 def get_active_perimeters() -> dict[str, Any]:
@@ -41,7 +81,7 @@ def get_active_perimeters() -> dict[str, Any]:
         A GeoJSON object with multipolygon geometry.
 
     Raises:
-        Exception: If NIFC answers with anything other than a 200 status code.
+        NIFCError: If NIFC cannot be reached or sends back an error.
 
     Examples:
         >>> data = get_active_perimeters()
@@ -60,7 +100,7 @@ def get_incidents() -> dict[str, Any]:
         A GeoJSON object with point geometry.
 
     Raises:
-        Exception: If NIFC answers with anything other than a 200 status code.
+        NIFCError: If NIFC cannot be reached or sends back an error.
 
     Examples:
         >>> data = get_incidents()
