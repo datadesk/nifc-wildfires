@@ -74,6 +74,25 @@ data = nifc_wildfires.get_active_perimeters(options)
 The same settings are available on the command line as `--where`,
 `--out-fields` and `--geometry-precision`.
 
+By default the data is checked strictly. If anything has the wrong shape,
+`nifc_wildfires.NIFCValidationError` is raised. It is a kind of `NIFCError`, so
+existing handlers still catch it, but it can also be caught on its own. Its
+`problems` list says where each problem is, and `problem_count` says how many
+there were in all.
+
+```python
+try:
+    data = nifc_wildfires.get_incidents()
+except nifc_wildfires.NIFCValidationError as error:
+    for problem in error.problems:
+        print(problem.location, problem.message)
+```
+
+To carry on regardless, pass `strict=False`, or `--no-strict` on the command
+line. The problems are written to the `nifc_wildfires` logger as warnings and the
+data is returned exactly as NIFC sent it. A reply with no list of features at
+all cannot be read, so it still raises.
+
 Find out when NIFC last edited its data, for example to skip a download when
 nothing has changed.
 

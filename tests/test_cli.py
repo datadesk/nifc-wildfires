@@ -16,8 +16,8 @@ def runner(monkeypatch):
     calls = {}
 
     def fake(name):
-        def get(*args):
-            calls[name] = args
+        def get(*args, **kwargs):
+            calls[name] = (args, kwargs)
             return {"from": name}
 
         return get
@@ -68,7 +68,7 @@ def test_unknown_command_fails(runner):
 def test_defaults_ask_for_everything(runner, command, name):
     """Test that the commands download everything unless told otherwise."""
     runner.invoke(cli.cmd, [command])
-    assert runner.calls[name] == (QueryOptions(),)
+    assert runner.calls[name] == ((QueryOptions(),), {"strict": True})
 
 
 @pytest.mark.unit
@@ -91,9 +91,8 @@ def test_options_are_passed_along(runner, command, name):
         ],
     )
     assert result.exit_code == 0
-    assert runner.calls[name] == (
-        QueryOptions(where="a=1", out_fields="OBJECTID", geometry_precision=5),
-    )
+    options = QueryOptions(where="a=1", out_fields="OBJECTID", geometry_precision=5)
+    assert runner.calls[name] == ((options,), {"strict": True})
 
 
 @pytest.mark.unit
@@ -107,3 +106,16 @@ def test_invalid_options_are_a_usage_error(runner, bad):
     assert result.exit_code == 2
     assert "Error" in result.output
     assert runner.calls == {}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("command", "name"),
+    [("active-perimeters", "perimeters"), ("incidents", "incidents")],
+)
+def test_no_strict_is_passed_along(runner, command, name):
+    """Test that --no-strict reaches the download, and --strict is the default."""
+    runner.invoke(cli.cmd, [command, "--no-strict"])
+    assert runner.calls[name][1] == {"strict": False}
+    runner.invoke(cli.cmd, [command, "--strict"])
+    assert runner.calls[name][1] == {"strict": True}

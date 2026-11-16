@@ -20,20 +20,20 @@ def cmd() -> None:
     """
 
 
-def query_options(function: Callable[..., None]) -> Callable[..., None]:
-    """Add the options that shape which data a command downloads.
+def shared_options(function: Callable[..., None]) -> Callable[..., None]:
+    """Add the options that shape and check what a command downloads.
 
     Args:
         function: The command function to add the options to.
 
     Returns:
-        The same function with the ``--where``, ``--out-fields`` and
-        ``--geometry-precision`` options attached.
+        The same function with the ``--where``, ``--out-fields``,
+        ``--geometry-precision`` and ``--strict/--no-strict`` options attached.
 
     Examples:
         >>> @click.command()
-        ... @query_options
-        ... def example(where, out_fields, geometry_precision): ...
+        ... @shared_options
+        ... def example(where, out_fields, geometry_precision, strict): ...
     """
     for option in reversed(
         [
@@ -44,6 +44,12 @@ def query_options(function: Callable[..., None]) -> Callable[..., None]:
                 type=int,
                 default=None,
                 help="Decimal places to keep in coordinates.",
+            ),
+            click.option(
+                "--strict/--no-strict",
+                default=True,
+                help="Stop on data that is not in the expected shape (default), "
+                "or log it and carry on.",
             ),
         ]
     ):
@@ -84,9 +90,9 @@ def build_options(
 
 
 @cmd.command(help="Perimeters of active fires")
-@query_options
+@shared_options
 def active_perimeters(
-    where: str, out_fields: str, geometry_precision: int | None
+    where: str, out_fields: str, geometry_precision: int | None, strict: bool
 ) -> None:
     """Print the perimeters of active fires as GeoJSON.
 
@@ -94,30 +100,38 @@ def active_perimeters(
         where: A SQL-style filter that picks which features to return.
         out_fields: The fields to return, as a comma-separated string.
         geometry_precision: The decimal places to keep in coordinates.
+        strict: Whether to stop on data that is not in the expected shape.
 
     Examples:
         $ nifcwildfires active-perimeters
         $ nifcwildfires active-perimeters --where "attr_IncidentTypeCategory='WF'"
     """
-    data = get_active_perimeters(build_options(where, out_fields, geometry_precision))
+    data = get_active_perimeters(
+        build_options(where, out_fields, geometry_precision), strict=strict
+    )
     click.echo(json.dumps(data))
 
 
 @cmd.command(help="All YTD fire incident points from NIFC situation reports")
-@query_options
-def incidents(where: str, out_fields: str, geometry_precision: int | None) -> None:
+@shared_options
+def incidents(
+    where: str, out_fields: str, geometry_precision: int | None, strict: bool
+) -> None:
     """Print all year-to-date fire incident points as GeoJSON.
 
     Args:
         where: A SQL-style filter that picks which features to return.
         out_fields: The fields to return, as a comma-separated string.
         geometry_precision: The decimal places to keep in coordinates.
+        strict: Whether to stop on data that is not in the expected shape.
 
     Examples:
         $ nifcwildfires incidents
         $ nifcwildfires incidents --out-fields OBJECTID,IncidentName
     """
-    data = get_incidents(build_options(where, out_fields, geometry_precision))
+    data = get_incidents(
+        build_options(where, out_fields, geometry_precision), strict=strict
+    )
     click.echo(json.dumps(data))
 
 

@@ -1,5 +1,7 @@
 """Download wildfires data from the National Interagency Fire Center."""
 
+import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, TypeVar
 
@@ -19,8 +21,10 @@ __all__ = [
     "Fetcher",
     "Layer",
     "NIFCError",
+    "NIFCValidationError",
     "QueryOptions",
     "Reply",
+    "ValidationProblem",
     "get_active_perimeters",
     "get_active_perimeters_last_edited",
     "get_incidents",
@@ -32,12 +36,75 @@ TIMEOUT = 60
 PAGE_SIZE = 1000
 MAX_PAGES = 100
 MAX_ATTEMPTS = 3
+MAX_PROBLEMS = 100
+
+logger = logging.getLogger(__name__)
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
 class NIFCError(Exception):
     """Raised when NIFC cannot be reached or sends back something unexpected."""
+
+
+@dataclass(frozen=True)
+class ValidationProblem:
+    """One thing that was wrong with the data NIFC sent back.
+
+    Attributes:
+        location: Where the problem is, as the path of keys and list positions
+            from the top of the reply, such as ``("features", 3, "geometry")``.
+        message: A plain description of the problem.
+
+    Examples:
+        >>> ValidationProblem(("features", 3, "geometry"), "Field required")
+        ValidationProblem(location=('features', 3, 'geometry'), message='Field required')
+    """
+
+    location: tuple[str | int, ...]
+    message: str
+
+
+class NIFCValidationError(NIFCError):
+    """Raised when NIFC's data does not have the shape this package expects.
+
+    This is different from a failed request or an error message from NIFC, which
+    raise the plain ``NIFCError``. Catch this one to handle a shape problem on
+    its own, for example by trying again with ``strict=False``.
+
+    Attributes:
+        what: A short description of the data that failed, such as ``"reply"``.
+        problems: The first ``MAX_PROBLEMS`` problems found.
+        problem_count: How many problems there were in all.
+
+    Examples:
+        >>> error = NIFCValidationError("reply", [ValidationProblem(("type",), "bad")])
+        >>> error.problem_count
+        1
+    """
+
+    def __init__(
+        self,
+        what: str,
+        problems: list[ValidationProblem],
+        problem_count: int | None = None,
+    ) -> None:
+        """Describe a shape failure.
+
+        Args:
+            what: A short description of the data that failed.
+            problems: The problems found, which may be cut short.
+            problem_count: How many problems there were in all. Defaults to the
+                number of problems given.
+        """
+        self.what = what
+        self.problems = problems
+        self.problem_count = len(problems) if problem_count is None else problem_count
+        summary = "; ".join(
+            f"{'.'.join(str(part) for part in p.location)}: {p.message}"
+            for p in problems[:3]
+        )
+        super().__init__(f"NIFC {what} is not in the expected shape ({summary}).")
 
 
 class _DataChangedError(NIFCError):
@@ -62,8 +129,8 @@ def _check(
         The data as a model object.
 
     Raises:
-        NIFCError: If the data does not fit the model. The message lists the
-            first few problems, without echoing the data itself.
+        NIFCValidationError: If the data does not fit the model. The message lists
+            the first few problems, without echoing the data itself.
 
     Examples:
         >>> _check(Page, {"type": "FeatureCollection", "features": []}, "page").has_more
@@ -72,13 +139,11 @@ def _check(
     try:
         return model.model_validate(data, context=context)
     except ValidationError as error:
-        problems = "; ".join(
-            f"{'.'.join(str(part) for part in e['loc'])}: {e['msg']}"
-            for e in error.errors()[:3]
-        )
-        raise NIFCError(
-            f"NIFC {what} is not in the expected shape ({problems})."
-        ) from error
+        found = error.errors()
+        problems = [
+            ValidationProblem(tuple(e["loc"]), e["msg"]) for e in found[:MAX_PROBLEMS]
+        ]
+        raise NIFCValidationError(what, problems, len(found)) from error
 
 
 def _get_json(
@@ -122,8 +187,73 @@ def _get_json(
     return payload
 
 
+@dataclass(frozen=True)
+class _PageInfo:
+    """What the download needs to know about one page of features."""
+
+    count: int
+    object_ids: list[int]
+    has_more: bool
+
+
+def _read_page(reply: dict[str, Any], layer: Layer, strict: bool) -> _PageInfo:
+    """Check one page of features and pull out what the download needs.
+
+    Args:
+        reply: One reply from NIFC.
+        layer: The layer being downloaded, which decides the allowed shapes.
+        strict: If True, a page that fails the checks raises an error. If False,
+            the failure is logged and the page is read as best it can be.
+
+    Returns:
+        The number of features, their IDs, and whether more pages are waiting.
+
+    Raises:
+        NIFCValidationError: If the page fails the checks and ``strict`` is True,
+            or if the reply has no list of features at all, which cannot be read
+            even leniently.
+
+    Examples:
+        >>> _read_page(
+        ...     {"type": "FeatureCollection", "features": []}, Layer.INCIDENTS, True
+        ... )
+        _PageInfo(count=0, object_ids=[], has_more=False)
+    """
+    try:
+        page = _check(Page, reply, "reply", {"geometry_types": layer.geometry_types})
+    except NIFCValidationError as error:
+        features = reply.get("features")
+        if strict or not isinstance(features, list):
+            raise
+        logger.warning(
+            "Letting %s problem(s) pass in a page of %s: %s",
+            error.problem_count,
+            layer.name.lower(),
+            error,
+        )
+        ids = [
+            f["properties"]["OBJECTID"]
+            for f in features
+            if isinstance(f, dict)
+            and isinstance(f.get("properties"), dict)
+            and type(f["properties"].get("OBJECTID")) is int
+        ]
+        properties = reply.get("properties")
+        flag = (properties if isinstance(properties, dict) else {}).get(
+            "exceededTransferLimit", reply.get("exceededTransferLimit")
+        )
+        return _PageInfo(len(features), ids, flag is True)
+    ids = [
+        f.properties["OBJECTID"] for f in page.features if "OBJECTID" in f.properties
+    ]
+    return _PageInfo(len(page.features), ids, page.has_more)
+
+
 def _get_geojson(
-    layer: Layer, options: QueryOptions, get: Fetcher | None = None
+    layer: Layer,
+    options: QueryOptions,
+    get: Fetcher | None = None,
+    strict: bool = True,
 ) -> dict[str, Any]:
     """Request features from one NIFC layer as GeoJSON.
 
@@ -136,15 +266,18 @@ def _get_geojson(
         options: The settings that shape the query.
         get: The function that makes the web request, or None for
             ``requests.get``.
+        strict: If True, data that fails the shape checks raises an error. If
+            False, the problems are logged and the data is passed along.
 
     Returns:
         A GeoJSON feature collection with the features from every page.
 
     Raises:
-        NIFCError: If a request fails, a reply does not have the expected shape,
-            the pages stop before NIFC says it is done, there are more than
-            ``MAX_PAGES`` pages, or NIFC's data keeps changing during
-            ``MAX_ATTEMPTS`` download attempts.
+        NIFCValidationError: If strict and the data fails the shape checks, or
+            if a reply has no list of features at all.
+        NIFCError: If a request fails, the pages stop before NIFC says it is
+            done, there are more than ``MAX_PAGES`` pages, or NIFC's data keeps
+            changing during ``MAX_ATTEMPTS`` download attempts.
 
     Examples:
         >>> data = _get_geojson(Layer.INCIDENTS, QueryOptions())
@@ -153,7 +286,7 @@ def _get_geojson(
     """
     for _ in range(MAX_ATTEMPTS):
         try:
-            return _download_pages(layer, options, get)
+            return _download_pages(layer, options, get, strict)
         except _DataChangedError:
             continue
     raise NIFCError(
@@ -162,7 +295,7 @@ def _get_geojson(
 
 
 def _download_pages(
-    layer: Layer, options: QueryOptions, get: Fetcher | None
+    layer: Layer, options: QueryOptions, get: Fetcher | None, strict: bool = True
 ) -> dict[str, Any]:
     """Download every page from a layer, once through.
 
@@ -175,14 +308,17 @@ def _download_pages(
         options: The settings that shape the query.
         get: The function that makes the web request, or None for
             ``requests.get``.
+        strict: If True, data that fails the shape checks raises an error. If
+            False, the problems are logged and the data is passed along.
 
     Returns:
         A GeoJSON feature collection with the features from every page.
 
     Raises:
-        NIFCError: If a request fails, a reply does not have the expected shape,
-            the pages stop before NIFC says it is done, or there are more than
-            ``MAX_PAGES`` pages.
+        NIFCValidationError: If strict and the data fails the shape checks, or
+            if a reply has no list of features at all.
+        NIFCError: If a request fails, the pages stop before NIFC says it is
+            done, or there are more than ``MAX_PAGES`` pages.
         _DataChangedError: If a feature ID is repeated across pages.
 
     Examples:
@@ -205,11 +341,8 @@ def _download_pages(
         if options.geometry_precision is not None:
             params["geometryPrecision"] = options.geometry_precision
         reply = _get_json(f"{BASE_URL}/{layer}/FeatureServer/0/query", params, get)
-        page = _check(Page, reply, "reply", {"geometry_types": layer.geometry_types})
-        for feature in page.features:
-            object_id = feature.properties.get("OBJECTID")
-            if object_id is None:
-                continue
+        page = _read_page(reply, layer, strict)
+        for object_id in page.object_ids:
             if object_id in seen_ids:
                 raise _DataChangedError(
                     f"NIFC repeated feature {object_id} across pages."
@@ -218,9 +351,9 @@ def _download_pages(
         features.extend(reply["features"])
         if not page.has_more:
             return {"type": "FeatureCollection", "features": features}
-        if not page.features:
+        if not page.count:
             raise NIFCError("NIFC paging ended before all features were read.")
-        offset += len(page.features)
+        offset += page.count
     raise NIFCError(f"NIFC exceeded the {MAX_PAGES}-page safety limit.")
 
 
@@ -236,7 +369,10 @@ def _get_last_edited(layer: Layer, get: Fetcher | None = None) -> datetime:
         The last edit time, in UTC.
 
     Raises:
-        NIFCError: If NIFC does not report a usable last edit time.
+        NIFCValidationError: If NIFC does not report a usable last edit time.
+            There is nothing to pass along in that case, so there is no
+            ``strict`` setting here.
+        NIFCError: If the request fails or NIFC sends back an error.
 
     Examples:
         >>> _get_last_edited(Layer.INCIDENTS).tzinfo
@@ -252,7 +388,10 @@ def _get_last_edited(layer: Layer, get: Fetcher | None = None) -> datetime:
 
 
 def get_active_perimeters(
-    options: QueryOptions | None = None, *, get: Fetcher | None = None
+    options: QueryOptions | None = None,
+    *,
+    get: Fetcher | None = None,
+    strict: bool = True,
 ) -> dict[str, Any]:
     """Get fire perimeters of all active fires from NIFC.
 
@@ -262,13 +401,18 @@ def get_active_perimeters(
         get: A function that makes the web request, such as ``requests.get``
             (the default). Pass your own to add retries, logging or custom
             headers.
+        strict: If True (the default), data that does not have the expected
+            shape raises ``NIFCValidationError``. If False, the problems are
+            logged to the ``nifc_wildfires`` logger and the data is returned as
+            NIFC sent it.
 
     Returns:
         A GeoJSON object with multipolygon geometry.
 
     Raises:
-        NIFCError: If NIFC cannot be reached, sends back an error, or sends data
-            in an unexpected shape.
+        NIFCValidationError: If strict and the data does not have the expected
+            shape, or if a reply has no list of features at all.
+        NIFCError: If NIFC cannot be reached or sends back an error.
 
     Examples:
         >>> data = get_active_perimeters()
@@ -282,11 +426,14 @@ def get_active_perimeters(
         ...     )
         ... )
     """
-    return _get_geojson(Layer.PERIMETERS, options or QueryOptions(), get)
+    return _get_geojson(Layer.PERIMETERS, options or QueryOptions(), get, strict)
 
 
 def get_incidents(
-    options: QueryOptions | None = None, *, get: Fetcher | None = None
+    options: QueryOptions | None = None,
+    *,
+    get: Fetcher | None = None,
+    strict: bool = True,
 ) -> dict[str, Any]:
     """Get year-to-date fire incident points from NIFC situation reports.
 
@@ -298,21 +445,27 @@ def get_incidents(
         get: A function that makes the web request, such as ``requests.get``
             (the default). Pass your own to add retries, logging or custom
             headers.
+        strict: If True (the default), data that does not have the expected
+            shape raises ``NIFCValidationError``. If False, the problems are
+            logged to the ``nifc_wildfires`` logger and the data is returned as
+            NIFC sent it.
 
     Returns:
         A GeoJSON object with point geometry.
 
     Raises:
-        NIFCError: If NIFC cannot be reached, sends back an error, or sends data
-            in an unexpected shape.
+        NIFCValidationError: If strict and the data does not have the expected
+            shape, or if a reply has no list of features at all.
+        NIFCError: If NIFC cannot be reached or sends back an error.
 
     Examples:
         >>> data = get_incidents()
         >>> data["type"]
         'FeatureCollection'
         >>> names = get_incidents(QueryOptions(out_fields="OBJECTID,IncidentName"))
+        >>> lenient = get_incidents(strict=False)
     """
-    return _get_geojson(Layer.INCIDENTS, options or QueryOptions(), get)
+    return _get_geojson(Layer.INCIDENTS, options or QueryOptions(), get, strict)
 
 
 def get_active_perimeters_last_edited(*, get: Fetcher | None = None) -> datetime:
@@ -329,7 +482,8 @@ def get_active_perimeters_last_edited(*, get: Fetcher | None = None) -> datetime
         The last edit time, in UTC.
 
     Raises:
-        NIFCError: If NIFC cannot be reached or does not report an edit time.
+        NIFCValidationError: If NIFC does not report a usable edit time.
+        NIFCError: If NIFC cannot be reached or sends back an error.
 
     Examples:
         >>> get_active_perimeters_last_edited().tzinfo
@@ -352,7 +506,8 @@ def get_incidents_last_edited(*, get: Fetcher | None = None) -> datetime:
         The last edit time, in UTC.
 
     Raises:
-        NIFCError: If NIFC cannot be reached or does not report an edit time.
+        NIFCValidationError: If NIFC does not report a usable edit time.
+        NIFCError: If NIFC cannot be reached or sends back an error.
 
     Examples:
         >>> get_incidents_last_edited().tzinfo
