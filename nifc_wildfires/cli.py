@@ -17,6 +17,14 @@ from nifc_wildfires import (
     QueryOptions,
 )
 
+LAYERS_BY_NAME = {layer.cli_name: layer for layer in Layer}
+LAYER_NAMES = list(LAYERS_BY_NAME)
+LAST_EDITED_LAYERS = {
+    "active-perimeters": Layer.CURRENT_PERIMETERS,
+    "incidents": Layer.CURRENT_INCIDENTS,
+    **LAYERS_BY_NAME,
+}
+LAST_EDITED_NAMES = list(LAST_EDITED_LAYERS)
 INCIDENT_TYPE_CHOICE = click.Choice(
     [t.value for t in IncidentType], case_sensitive=False
 )
@@ -255,6 +263,43 @@ def clean_errors(verbose: bool = False) -> Generator[None]:
         raise click.ClickException(message) from error
 
 
+def run_download(
+    layer: Layer,
+    where: str,
+    out_fields: str,
+    geometry_precision: int | None,
+    incident_type: tuple[str, ...],
+    exclude_incident_type: tuple[str, ...],
+    strict: bool,
+    timeout: float | None,
+    verbose: bool,
+) -> None:
+    """Download one layer and print it as GeoJSON.
+
+    Args:
+        layer: The layer to download.
+        where: A SQL-style filter that picks which features to return.
+        out_fields: The fields to return, as a comma-separated string.
+        geometry_precision: The decimal places to keep in coordinates.
+        incident_type: Incident type codes to keep, or none to keep every type.
+        exclude_incident_type: Incident type codes to leave out.
+        strict: Whether to stop on data that is not in the expected shape.
+        timeout: The seconds to wait for each request, or None for the default.
+        verbose: Whether to list every problem when a download fails.
+
+    Examples:
+        >>> run_download(
+        ...     Layer.CURRENT_INCIDENTS, "1=1", "*", None, (), (), True, None, False
+        ... )
+    """
+    options = build_options(
+        where, out_fields, geometry_precision, incident_type, exclude_incident_type
+    )
+    with clean_errors(verbose):
+        data = build_client(strict, timeout).download(layer, options)
+    click.echo(json.dumps(data))
+
+
 @cmd.command(help="Perimeters of active fires")
 @download_options
 @common_options
@@ -285,17 +330,22 @@ def active_perimeters(
         $ nifcwildfires active-perimeters --incident-type WF
         $ nifcwildfires active-perimeters --timeout 120 --no-strict
     """
-    options = build_options(
-        where, out_fields, geometry_precision, incident_type, exclude_incident_type
+    run_download(
+        Layer.CURRENT_PERIMETERS,
+        where,
+        out_fields,
+        geometry_precision,
+        incident_type,
+        exclude_incident_type,
+        strict,
+        timeout,
+        verbose,
     )
-    with clean_errors(verbose):
-        data = build_client(strict, timeout).get_active_perimeters(options)
-    click.echo(json.dumps(data))
 
 
 @cmd.command(
-    help="All YTD fire incident points from NIFC situation reports, "
-    "prescribed burns included"
+    help="Current fire incident points, recently active only, prescribed burns "
+    "included. Not the whole year: use 'download incidents-year-to-date'."
 )
 @download_options
 @common_options
@@ -309,7 +359,11 @@ def incidents(
     timeout: float | None,
     verbose: bool,
 ) -> None:
-    """Print all year-to-date fire incident points as GeoJSON.
+    """Print the current fire incident points as GeoJSON.
+
+    These are incidents that are still active or were updated recently, a few
+    hundred at a time, not the whole year. For the year, use
+    ``download incidents-year-to-date``.
 
     This includes prescribed burns (type RX), fires lit on purpose, which can be
     most of the points. Leave them out with ``--exclude-incident-type RX``.
@@ -329,24 +383,85 @@ def incidents(
         $ nifcwildfires incidents --out-fields OBJECTID,IncidentName
         $ nifcwildfires incidents --exclude-incident-type RX
     """
-    options = build_options(
-        where, out_fields, geometry_precision, incident_type, exclude_incident_type
+    run_download(
+        Layer.CURRENT_INCIDENTS,
+        where,
+        out_fields,
+        geometry_precision,
+        incident_type,
+        exclude_incident_type,
+        strict,
+        timeout,
+        verbose,
     )
-    with clean_errors(verbose):
-        data = build_client(strict, timeout).get_incidents(options)
-    click.echo(json.dumps(data))
+
+
+@cmd.command(
+    help="Download any layer by name. The year-to-date layers are large: narrow "
+    "them with --incident-type, --where, --out-fields and --geometry-precision."
+)
+@click.argument("layer", type=click.Choice(LAYER_NAMES))
+@download_options
+@common_options
+def download(
+    layer: str,
+    where: str,
+    out_fields: str,
+    geometry_precision: int | None,
+    incident_type: tuple[str, ...],
+    exclude_incident_type: tuple[str, ...],
+    strict: bool,
+    timeout: float | None,
+    verbose: bool,
+) -> None:
+    """Print any layer as GeoJSON.
+
+    The layers are ``current-perimeters``, ``current-incidents``,
+    ``incidents-last-24-hours``, ``incidents-year-to-date`` and
+    ``perimeters-year-to-date``. The year-to-date layers hold thousands to tens of
+    thousands of features, and the perimeters one was about 115 MB with full
+    coordinates in November 2026, so narrow what you ask for.
+
+    Args:
+        layer: The layer to download, by its command-line name.
+        where: A SQL-style filter that picks which features to return.
+        out_fields: The fields to return, as a comma-separated string.
+        geometry_precision: The decimal places to keep in coordinates.
+        incident_type: Incident type codes to keep, or none to keep every type.
+        exclude_incident_type: Incident type codes to leave out.
+        strict: Whether to stop on data that is not in the expected shape.
+        timeout: The seconds to wait for each request, or None for the default.
+        verbose: Whether to list every problem when a download fails.
+
+    Examples:
+        $ nifcwildfires download incidents-last-24-hours
+        $ nifcwildfires download incidents-year-to-date --incident-type WF
+        $ nifcwildfires download perimeters-year-to-date --incident-type WF --geometry-precision 3
+    """
+    run_download(
+        LAYERS_BY_NAME[layer],
+        where,
+        out_fields,
+        geometry_precision,
+        incident_type,
+        exclude_incident_type,
+        strict,
+        timeout,
+        verbose,
+    )
 
 
 @cmd.command(
     help="When NIFC last edited a layer, as a UTC time. Use it to skip a download."
 )
-@click.argument("layer", type=click.Choice(["active-perimeters", "incidents"]))
+@click.argument("layer", type=click.Choice(LAST_EDITED_NAMES))
 @common_options
 def last_edited(layer: str, timeout: float | None, verbose: bool) -> None:
     """Print when NIFC last edited a layer, as an ISO 8601 time in UTC.
 
     Args:
-        layer: Which layer to ask about, ``active-perimeters`` or ``incidents``.
+        layer: Which layer to ask about. ``active-perimeters`` and ``incidents``
+            are the current layers. Any layer name from ``download`` also works.
         timeout: The seconds to wait for each request, or None for the default.
         verbose: Whether to list every problem when the request fails.
 
@@ -354,9 +469,8 @@ def last_edited(layer: str, timeout: float | None, verbose: bool) -> None:
         $ nifcwildfires last-edited active-perimeters
         2026-11-16T21:42:07.701000+00:00
     """
-    which = Layer.PERIMETERS if layer == "active-perimeters" else Layer.INCIDENTS
     with clean_errors(verbose):
-        edited = build_client(timeout=timeout).last_edited(which)
+        edited = build_client(timeout=timeout).last_edited(LAST_EDITED_LAYERS[layer])
     click.echo(edited.isoformat())
 
 

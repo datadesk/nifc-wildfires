@@ -125,14 +125,18 @@ class NIFCClient:
             >>> data["type"]
             'FeatureCollection'
         """
-        return self.download(Layer.PERIMETERS, options)
+        return self.download(Layer.CURRENT_PERIMETERS, options)
 
     def get_incidents(self, options: QueryOptions | None = None) -> dict[str, Any]:
-        """Get year-to-date fire incident points from NIFC situation reports.
+        """Get the current fire incident points from NIFC.
 
-        Includes active and inactive incidents, and prescribed burns (type
-        ``RX``), which are fires lit on purpose and can be most of the points.
-        Leave them out with ``exclude_incident_types`` in the options.
+        This is NIFC's current layer: incidents that are still active or were
+        updated recently, a few hundred at a time. It is not the whole year. For
+        that, use ``download(Layer.INCIDENTS_YEAR_TO_DATE)``.
+
+        It includes prescribed burns (type ``RX``), which are fires lit on purpose
+        and can be most of the points. Leave them out with
+        ``exclude_incident_types`` in the options.
 
         Args:
             options: The settings that shape the query. The default returns every
@@ -152,7 +156,7 @@ class NIFCClient:
             >>> data["type"]
             'FeatureCollection'
         """
-        return self.download(Layer.INCIDENTS, options)
+        return self.download(Layer.CURRENT_INCIDENTS, options)
 
     def get_active_perimeters_last_edited(self) -> datetime:
         """Get when NIFC last edited its active fire perimeters.
@@ -173,7 +177,7 @@ class NIFCClient:
             >>> NIFCClient().get_active_perimeters_last_edited().tzinfo
             datetime.timezone.utc
         """
-        return self.last_edited(Layer.PERIMETERS)
+        return self.last_edited(Layer.CURRENT_PERIMETERS)
 
     def get_incidents_last_edited(self) -> datetime:
         """Get when NIFC last edited its fire incident points.
@@ -192,7 +196,7 @@ class NIFCClient:
             >>> NIFCClient().get_incidents_last_edited().tzinfo
             datetime.timezone.utc
         """
-        return self.last_edited(Layer.INCIDENTS)
+        return self.last_edited(Layer.CURRENT_INCIDENTS)
 
     def download(
         self, layer: Layer, options: QueryOptions | None = None
@@ -220,7 +224,7 @@ class NIFCClient:
                 keeps changing during ``max_attempts`` download attempts.
 
         Examples:
-            >>> data = NIFCClient().download(Layer.INCIDENTS, QueryOptions())
+            >>> data = NIFCClient().download(Layer.CURRENT_INCIDENTS, QueryOptions())
             >>> data["type"]
             'FeatureCollection'
         """
@@ -249,7 +253,7 @@ class NIFCClient:
             NIFCError: If the request fails or NIFC sends back an error.
 
         Examples:
-            >>> NIFCClient().last_edited(Layer.INCIDENTS).tzinfo
+            >>> NIFCClient().last_edited(Layer.CURRENT_INCIDENTS).tzinfo
             datetime.timezone.utc
         """
         reply = self._get_json(f"{BASE_URL}/{layer}/FeatureServer/0", {"f": "json"})
@@ -284,7 +288,9 @@ class NIFCClient:
             DataChangedError: If a feature ID is repeated across pages.
 
         Examples:
-            >>> data = NIFCClient()._download_pages(Layer.INCIDENTS, QueryOptions())
+            >>> data = NIFCClient()._download_pages(
+            ...     Layer.CURRENT_INCIDENTS, QueryOptions()
+            ... )
             >>> data["type"]
             'FeatureCollection'
         """
@@ -335,7 +341,7 @@ class NIFCClient:
 
         Examples:
             >>> reply = {"type": "FeatureCollection", "features": []}
-            >>> NIFCClient()._read_page(reply, Layer.INCIDENTS)
+            >>> NIFCClient()._read_page(reply, Layer.CURRENT_INCIDENTS)
             _PageInfo(count=0, object_ids=[], has_more=False)
         """
         try:
@@ -389,7 +395,7 @@ class NIFCClient:
                 the reply contains an error message.
 
         Examples:
-            >>> layer = f"{Layer.INCIDENTS}/FeatureServer/0"
+            >>> layer = f"{Layer.CURRENT_INCIDENTS}/FeatureServer/0"
             >>> NIFCClient()._get_json(f"{BASE_URL}/{layer}", {"f": "json"})["name"]
             'WFIGS_Incident_Locations_Current'
         """

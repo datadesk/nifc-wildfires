@@ -344,3 +344,105 @@ def test_keep_and_exclude_error_says_why(web, run):
 def test_incidents_help_says_prescribed_burns_are_included(run):
     """Test that the command help makes clear that prescribed burns are in there."""
     assert "prescribed burns" in " ".join(run("incidents", "--help").output.split())
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("name", "service", "geometry"),
+    [
+        ("current-perimeters", "WFIGS_Interagency_Perimeters_Current", "Polygon"),
+        ("current-incidents", "WFIGS_Incident_Locations_Current", "Point"),
+        ("incidents-last-24-hours", "WFIGS_Incident_Locations_Last24h", "Point"),
+        ("incidents-year-to-date", "WFIGS_Incident_Locations_YearToDate", "Point"),
+        (
+            "perimeters-year-to-date",
+            "WFIGS_Interagency_Perimeters_YearToDate",
+            "MultiPolygon",
+        ),
+    ],
+)
+def test_download_command_reaches_every_layer(web, run, name, service, geometry):
+    """Test that the download command asks the right service for each layer."""
+    web.reply = collection(feature(3, geometry))
+    result = run("download", name)
+    assert result.exit_code == 0
+    assert service in web.calls[0][0]
+    assert json.loads(result.stdout)["features"][0]["properties"]["OBJECTID"] == 3
+
+
+@pytest.mark.unit
+def test_download_command_takes_the_same_options(web, run):
+    """Test that download accepts the filters, precision, timeout and strict flags."""
+    web.reply = collection()
+    result = run(
+        "download",
+        "incidents-year-to-date",
+        "--exclude-incident-type",
+        "RX",
+        "--out-fields",
+        "OBJECTID",
+        "--geometry-precision",
+        "3",
+        "--timeout",
+        "90",
+        "--no-strict",
+    )
+    assert result.exit_code == 0
+    _, params, timeout = web.calls[0]
+    assert "IncidentTypeCategory" in params["where"]
+    assert (params["outFields"], params["geometryPrecision"], timeout) == (
+        "OBJECTID",
+        3,
+        90,
+    )
+
+
+@pytest.mark.unit
+def test_download_command_needs_a_known_layer(web, run):
+    """Test that download rejects a missing or unknown layer."""
+    assert run("download").exit_code == 2
+    assert run("download", "everything").exit_code == 2
+    assert web.calls == []
+
+
+@pytest.mark.unit
+def test_the_named_commands_still_use_the_current_layers(web, run):
+    """Test that active-perimeters and incidents keep downloading the current layers."""
+    web.reply = collection()
+    run("active-perimeters")
+    run("incidents")
+    assert web.calls[0][0].endswith(
+        "WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query"
+    )
+    assert web.calls[1][0].endswith(
+        "WFIGS_Incident_Locations_Current/FeatureServer/0/query"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("name", "service"),
+    [
+        ("active-perimeters", "WFIGS_Interagency_Perimeters_Current"),
+        ("incidents", "WFIGS_Incident_Locations_Current"),
+        ("current-incidents", "WFIGS_Incident_Locations_Current"),
+        ("incidents-last-24-hours", "WFIGS_Incident_Locations_Last24h"),
+        ("incidents-year-to-date", "WFIGS_Incident_Locations_YearToDate"),
+        ("perimeters-year-to-date", "WFIGS_Interagency_Perimeters_YearToDate"),
+    ],
+)
+def test_last_edited_accepts_every_layer(web, run, name, service):
+    """Test that last-edited works for the old names and for every layer."""
+    web.reply = Reply({"editingInfo": {"lastEditDate": 0}})
+    result = run("last-edited", name)
+    assert result.exit_code == 0
+    assert service in web.calls[0][0]
+
+
+@pytest.mark.unit
+def test_help_does_not_claim_the_current_incidents_are_the_whole_year(run):
+    """Test that the incidents help says it is not the whole year."""
+    text = " ".join(run("incidents", "--help").output.split())
+    assert "Not the whole year" in text
+    assert "YTD" not in text
+    assert "YTD" not in run("--help").output

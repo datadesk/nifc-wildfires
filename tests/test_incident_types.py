@@ -69,7 +69,12 @@ def test_complexes_are_fire_management_not_fire():
 @pytest.mark.integration
 def test_live_codes_are_all_defined():
     """Test that every category NIFC uses today is one the standard defines."""
-    for layer in Layer:
+    small_layers = [
+        Layer.CURRENT_PERIMETERS,
+        Layer.CURRENT_INCIDENTS,
+        Layer.INCIDENTS_LAST_24_HOURS,
+    ]
+    for layer in small_layers:
         field = layer.incident_type_field
         data = NIFCClient().download(
             layer, QueryOptions(out_fields=f"OBJECTID,{field}")
@@ -93,8 +98,8 @@ def test_live_kind_matches_category():
 @pytest.mark.unit
 def test_each_layer_names_its_own_field():
     """Test that the two layers spell the incident type field differently."""
-    assert Layer.PERIMETERS.incident_type_field == "attr_IncidentTypeCategory"
-    assert Layer.INCIDENTS.incident_type_field == "IncidentTypeCategory"
+    assert Layer.CURRENT_PERIMETERS.incident_type_field == "attr_IncidentTypeCategory"
+    assert Layer.CURRENT_INCIDENTS.incident_type_field == "IncidentTypeCategory"
 
 
 @pytest.mark.unit
@@ -130,7 +135,7 @@ def test_type_settings_join_the_callers_own_filter():
     """Test that a hand-written filter and the types are both applied."""
     options = QueryOptions(where="OBJECTID > 5", incident_types={"WF"})
     assert (
-        options.where_for(Layer.INCIDENTS)
+        options.where_for(Layer.CURRENT_INCIDENTS)
         == "(OBJECTID > 5) AND IncidentTypeCategory IN ('WF')"
     )
 
@@ -187,3 +192,86 @@ def test_live_only_wildfires():
     )
     data = NIFCClient().get_incidents(options)
     assert {f["properties"]["IncidentTypeCategory"] for f in data["features"]} <= {"WF"}
+
+
+@pytest.mark.unit
+def test_every_layer_has_a_distinct_service_and_command_name():
+    """Test that the five layers have their own service and command-line name."""
+    assert len({layer.value for layer in Layer}) == 5
+    assert [layer.cli_name for layer in Layer] == [
+        "current-perimeters",
+        "current-incidents",
+        "incidents-last-24-hours",
+        "incidents-year-to-date",
+        "perimeters-year-to-date",
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("layer", "service", "polygons"),
+    [
+        (Layer.CURRENT_PERIMETERS, "WFIGS_Interagency_Perimeters_Current", True),
+        (Layer.CURRENT_INCIDENTS, "WFIGS_Incident_Locations_Current", False),
+        (Layer.INCIDENTS_LAST_24_HOURS, "WFIGS_Incident_Locations_Last24h", False),
+        (Layer.INCIDENTS_YEAR_TO_DATE, "WFIGS_Incident_Locations_YearToDate", False),
+        (
+            Layer.PERIMETERS_YEAR_TO_DATE,
+            "WFIGS_Interagency_Perimeters_YearToDate",
+            True,
+        ),
+    ],
+)
+def test_layers_name_their_service_shape_and_field(layer, service, polygons):
+    """Test each layer's service, allowed shapes and incident type field."""
+    assert layer.value == service
+    assert layer.is_perimeters is polygons
+    assert layer.geometry_types == (
+        {"Polygon", "MultiPolygon"} if polygons else {"Point"}
+    )
+    assert layer.incident_type_field == (
+        "attr_IncidentTypeCategory" if polygons else "IncidentTypeCategory"
+    )
+
+
+@pytest.mark.unit
+def test_the_old_ambiguous_layer_names_are_gone():
+    """Test that nothing called just INCIDENTS or PERIMETERS can be mistaken for all."""
+    assert not hasattr(Layer, "INCIDENTS")
+    assert not hasattr(Layer, "PERIMETERS")
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "layer", [Layer.INCIDENTS_LAST_24_HOURS, Layer.CURRENT_INCIDENTS]
+)
+def test_live_small_incident_layers_pass_the_strict_checks(layer):
+    """Test that the real data in the small incident layers passes every check."""
+    field = layer.incident_type_field
+    data = NIFCClient().download(layer, QueryOptions(out_fields=f"OBJECTID,{field}"))
+    assert {f["properties"][field] for f in data["features"]} <= {
+        t.value for t in IncidentType
+    }
+
+
+@pytest.mark.integration
+def test_live_year_to_date_perimeters_slice_passes_the_strict_checks():
+    """Test a slice of the large year-to-date perimeters, which are too big to fetch."""
+    options = QueryOptions(
+        out_fields="OBJECTID,attr_IncidentTypeCategory",
+        geometry_precision=0,
+        incident_types={IncidentType.PRESCRIBED_FIRE},
+        where="OBJECTID > 0",
+    )
+    data = NIFCClient().download(Layer.PERIMETERS_YEAR_TO_DATE, options)
+    kinds = {f["properties"]["attr_IncidentTypeCategory"] for f in data["features"]}
+    assert kinds <= {"RX"}
+    assert data["features"]
+
+
+@pytest.mark.unit
+def test_type_information_ships_with_the_package():
+    """Test that the py.typed marker is in the package, so others see our types."""
+    from importlib.resources import files
+
+    assert files("nifc_wildfires").joinpath("py.typed").is_file()

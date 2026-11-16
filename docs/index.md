@@ -27,7 +27,8 @@ Options:
 
 Commands:
   active-perimeters  Perimeters of active fires
-  incidents          All YTD fire incident points from NIFC situation reports
+  download           Download any layer by name.
+  incidents          Current fire incident points, recently active only,...
   last-edited        When NIFC last edited a layer, as a UTC time.
 ```
 
@@ -38,7 +39,17 @@ nifcwildfires active-perimeters
 nifcwildfires incidents
 ```
 
-Both download commands print valid JSON, and share these options.
+`incidents` is the *current* layer: fires that are still active or were updated
+recently, a few hundred at a time. It is not the whole year. Use `download` to
+reach every layer, including the year-to-date ones (see
+[Which layer is which](#which-layer-is-which)):
+
+```sh
+nifcwildfires download incidents-last-24-hours
+nifcwildfires download incidents-year-to-date --exclude-incident-type RX
+```
+
+All of the download commands print valid JSON, and share these options.
 
 | Option | What it does |
 | --- | --- |
@@ -124,13 +135,69 @@ line. The problems are written to the `nifc_wildfires` logger as warnings and th
 data is returned exactly as NIFC sent it. A reply with no list of features at
 all cannot be read, so it still raises.
 
+## Which layer is which
+
+NIFC publishes several layers of the same data. Only the first two were available
+in earlier versions, and **neither of them is the whole year**. The counts below
+were seen on November 16, 2026.
+
+| `Layer` | Command-line name | What it holds | Records |
+| --- | --- | --- | --- |
+| `CURRENT_PERIMETERS` | `current-perimeters` (or `active-perimeters`) | Outlines of fires that are not out yet. | 54 |
+| `CURRENT_INCIDENTS` | `current-incidents` (or `incidents`) | Points for incidents that are active or were updated recently. | about 410 |
+| `INCIDENTS_LAST_24_HOURS` | `incidents-last-24-hours` | Points for incidents started or updated in the last day. | about 90 |
+| `INCIDENTS_YEAR_TO_DATE` | `incidents-year-to-date` | Points for every incident since January 1. | 45,390 |
+| `PERIMETERS_YEAR_TO_DATE` | `perimeters-year-to-date` | Outlines for every fire since January 1. | 8,414 |
+
+NIFC's description of its current perimeters layer says a fire drops out once it
+is declared contained, controlled or out, once its fire report is certified, or
+when it has not been updated for more than 3 days (under 10 acres), 8 days (10 to
+100 acres) or 14 days (over 100 acres). That is checked hourly. Fires that started
+before December of the previous year are left out. The current incidents layer
+behaves the same way in the data (nothing older than December 2025, and every
+record updated within the last two weeks), but I read the rule only for the
+perimeters.
+
+The year-to-date layers are large. The year-to-date perimeters were about 115 MB
+with full coordinates, and the incidents took about 30 seconds to download. Narrow
+them with `--incident-type`, `--where`, `--out-fields` and `--geometry-precision`.
+NIFC also has layers for all years (432,000 incidents and 43,000 perimeters). They
+are bigger than this package's safety limit of 100 pages, so they are not offered.
+
+```python
+from nifc_wildfires import Layer, NIFCClient
+
+data = NIFCClient().download(Layer.INCIDENTS_YEAR_TO_DATE)
+```
+
+## About the data
+
+The data comes from NIFC's Wildland Fire Interagency Geospatial Services (WFIGS).
+Its [published metadata](https://www.arcgis.com/sharing/rest/content/items/d1c32af3212341869b3c810f1a215824/info/metadata/metadata.xml?format=default&output=html)
+says:
+
+- The data is refreshed every 5 minutes, and changes to a perimeter's source can
+  take up to 15 minutes to show.
+- Perimeters are not available for every incident.
+- It credits the Department of the Interior's Office of Wildland Fire (IRWIN),
+  the USDA Forest Service, National Park Service, Fish and Wildlife Service,
+  Bureau of Indian Affairs, Bureau of Land Management, National Association of
+  State Foresters, US Fire Administration and National Wildfire Coordinating
+  Group.
+- It states **no license**, and says NIFC "gives no warranty, expressed or
+  implied, as to the accuracy, reliability, or completeness of these data".
+
+This package's MIT license covers its code, not the data. Check NIFC's terms before
+you republish the data, and credit NIFC and its partners.
+
 ## Wildfires and prescribed burns
 
 **The incident points include prescribed burns.** A prescribed burn is a fire lit
 on purpose, to manage land. NIFC reports them alongside wildfires, so unless you
-say otherwise `incidents` returns both. When this was written, in November 2026,
-about two thirds of the incident points were prescribed burns, not wildfires.
-Check this before counting or mapping them.
+say otherwise `incidents` returns both. In November 2026, about two thirds of the
+current incident points were prescribed burns, not wildfires. Over the whole
+year the share was much lower, about 14 percent (6,424 of 45,390), so the mix
+depends on which layer you use. Check it before counting or mapping them.
 
 ### The codes
 
@@ -196,8 +263,9 @@ nifcwildfires active-perimeters --incident-type WF
 ```
 
 The perimeters carry the same codes. At the last check none of the current
-perimeters were prescribed burns, but that can change, so apply the same filter
-if you need wildfires only.
+perimeters were prescribed burns, but the year-to-date perimeters had some, so
+apply the same filter if you need wildfires only. The year-to-date perimeters
+had no complexes, and the current ones had two.
 
 The two layers spell the field differently, `attr_IncidentTypeCategory` for
 perimeters and `IncidentTypeCategory` for incidents. These options use the right
@@ -285,7 +353,7 @@ incidents = client.get_incidents(QueryOptions(out_fields="OBJECTID,IncidentName"
 edited = client.get_incidents_last_edited()
 
 # The same, for any layer by name:
-data = client.download(Layer.PERIMETERS)
+data = client.download(Layer.CURRENT_PERIMETERS)
 ```
 
 A client cannot be changed once made. To change a setting, make another one.
