@@ -2,18 +2,68 @@
 
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, TypeVar
 
 import requests
+from pydantic import BaseModel, ValidationError
+
+from nifc_wildfires.schema import LayerMetadata, Page, QueryOptions
 
 BASE_URL = "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services"
 TIMEOUT = 60
 PAGE_SIZE = 1000
 MAX_PAGES = 100
+MAX_ATTEMPTS = 3
+PERIMETER_GEOMETRY = {"Polygon", "MultiPolygon"}
+INCIDENT_GEOMETRY = {"Point"}
+
+
+ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
 class NIFCError(Exception):
     """Raised when NIFC cannot be reached or sends back something unexpected."""
+
+
+class _DataChangedError(NIFCError):
+    """Raised when NIFC's data shifts in the middle of a paged download."""
+
+
+def _check(
+    model: type[ModelT],
+    data: object,
+    what: str,
+    context: dict[str, Any] | None = None,
+) -> ModelT:
+    """Check data against a model and turn any problems into a ``NIFCError``.
+
+    Args:
+        model: The Pydantic model the data must fit.
+        data: The data to check.
+        what: A short description of the data, used in the error message.
+        context: Extra information the model's checks may use.
+
+    Returns:
+        The data as a model object.
+
+    Raises:
+        NIFCError: If the data does not fit the model. The message lists the
+            first few problems, without echoing the data itself.
+
+    Examples:
+        >>> _check(Page, {"type": "FeatureCollection", "features": []}, "page").has_more
+        False
+    """
+    try:
+        return model.model_validate(data, context=context)
+    except ValidationError as error:
+        problems = "; ".join(
+            f"{'.'.join(str(part) for part in e['loc'])}: {e['msg']}"
+            for e in error.errors()[:3]
+        )
+        raise NIFCError(
+            f"NIFC {what} is not in the expected shape ({problems})."
+        ) from error
 
 
 def _get_json(
@@ -61,6 +111,7 @@ def _get_json(
 
 def _get_geojson(
     service: str,
+    geometry_types: set[str],
     where: str = "1=1",
     out_fields: str = "*",
     geometry_precision: int | None = None,
@@ -73,6 +124,7 @@ def _get_geojson(
 
     Args:
         service: The name of the NIFC feature service to query.
+        geometry_types: The GeoJSON geometry types the service should return.
         where: A SQL-style filter that picks which features to return. The
             default returns all of them.
         out_fields: The fields to return, as a comma-separated string. The
@@ -89,71 +141,102 @@ def _get_geojson(
         A GeoJSON feature collection with the features from every page.
 
     Raises:
-        NIFCError: If a request fails, a reply is not a list of features, the
-            pages stop before NIFC says it is done, or there are more than
-            ``MAX_PAGES`` pages.
+        NIFCError: If the settings are not valid, a request fails, a reply does
+            not have the expected shape, the pages stop before NIFC says it is
+            done, there are more than ``MAX_PAGES`` pages, or NIFC's data keeps
+            changing during ``MAX_ATTEMPTS`` download attempts.
 
     Examples:
-        >>> data = _get_geojson("WFIGS_Incident_Locations_Current")
+        >>> data = _get_geojson("WFIGS_Incident_Locations_Current", {"Point"})
+        >>> data["type"]
+        'FeatureCollection'
+    """
+    options = _check(
+        QueryOptions,
+        {
+            "where": where,
+            "out_fields": out_fields,
+            "geometry_precision": geometry_precision,
+        },
+        "settings",
+    )
+    for _ in range(MAX_ATTEMPTS):
+        try:
+            return _download_pages(service, geometry_types, options, get)
+        except _DataChangedError:
+            continue
+    raise NIFCError(
+        f"NIFC data kept changing during {MAX_ATTEMPTS} download attempts. Try again."
+    )
+
+
+def _download_pages(
+    service: str,
+    geometry_types: set[str],
+    options: QueryOptions,
+    get: Callable[..., Any] | None,
+) -> dict[str, Any]:
+    """Download every page from a feature service, once through.
+
+    NIFC edits its data all the time. If an edit lands while the pages are being
+    read, later pages shift and the same feature can show up twice, which means
+    another feature was skipped. That is detected by repeated feature IDs.
+
+    Args:
+        service: The name of the NIFC feature service to query.
+        geometry_types: The GeoJSON geometry types the service should return.
+        options: The checked settings that shape the query.
+        get: The function that makes web requests, or None for the default.
+
+    Returns:
+        A GeoJSON feature collection with the features from every page.
+
+    Raises:
+        NIFCError: If a request fails, a reply does not have the expected shape,
+            the pages stop before NIFC says it is done, or there are more than
+            ``MAX_PAGES`` pages.
+        _DataChangedError: If a feature ID is repeated across pages.
+
+    Examples:
+        >>> options = QueryOptions()
+        >>> data = _download_pages(
+        ...     "WFIGS_Incident_Locations_Current", {"Point"}, options, None
+        ... )
         >>> data["type"]
         'FeatureCollection'
     """
     features: list[Any] = []
+    seen_ids: set[int] = set()
     offset = 0
     for _ in range(MAX_PAGES):
         params: dict[str, Any] = {
-            "outFields": out_fields,
-            "where": where,
+            "outFields": options.out_fields,
+            "where": options.where,
             "orderByFields": "OBJECTID",
             "resultOffset": offset,
             "resultRecordCount": PAGE_SIZE,
             "f": "geojson",
         }
-        if geometry_precision is not None:
-            params["geometryPrecision"] = geometry_precision
-        page = _get_json(f"{BASE_URL}/{service}/FeatureServer/0/query", params, get)
-        page_features = page.get("features")
-        if not isinstance(page_features, list):
-            raise NIFCError("NIFC response is missing its feature list.")
-        features.extend(page_features)
-        if not _has_more_pages(page):
+        if options.geometry_precision is not None:
+            params["geometryPrecision"] = options.geometry_precision
+        reply = _get_json(f"{BASE_URL}/{service}/FeatureServer/0/query", params, get)
+        page = _check(Page, reply, "reply", {"geometry_types": geometry_types})
+        for feature in page.features:
+            object_id = feature.properties.get("OBJECTID")
+            if object_id is None:
+                continue
+            if object_id in seen_ids:
+                raise _DataChangedError(
+                    f"NIFC repeated feature {object_id} across pages."
+                )
+            seen_ids.add(object_id)
+        features.extend(reply["features"])
+        if not page.has_more:
             return {"type": "FeatureCollection", "features": features}
-        if not page_features:
+        if not page.features:
             raise NIFCError("NIFC paging ended before all features were read.")
-        offset += len(page_features)
+        offset += len(page.features)
     raise NIFCError(f"NIFC exceeded the {MAX_PAGES}-page safety limit.")
-
-
-def _has_more_pages(page: dict[str, Any]) -> bool:
-    """Check whether NIFC says more features are waiting after this page.
-
-    NIFC puts the flag inside ``properties`` in GeoJSON replies, and at the top
-    level in other formats, so both places are checked.
-
-    Args:
-        page: One reply from NIFC.
-
-    Returns:
-        True if there are more pages to request.
-
-    Raises:
-        NIFCError: If the flag is present but is not true or false.
-
-    Examples:
-        >>> _has_more_pages({"properties": {"exceededTransferLimit": True}})
-        True
-        >>> _has_more_pages({"features": []})
-        False
-    """
-    properties = page.get("properties")
-    if not isinstance(properties, dict):
-        properties = {}
-    flag = properties.get("exceededTransferLimit", page.get("exceededTransferLimit"))
-    if flag is None:
-        return False
-    if not isinstance(flag, bool):
-        raise NIFCError("NIFC returned an invalid paging flag.")
-    return flag
 
 
 def _get_last_edited(service: str, get: Callable[..., Any] | None = None) -> datetime:
@@ -174,16 +257,12 @@ def _get_last_edited(service: str, get: Callable[..., Any] | None = None) -> dat
         NIFCError: If NIFC does not report a usable last edit time.
 
     Examples:
-        >>> _get_last_edited("WFIGS_Incident_Locations_Current", get).tzinfo
+        >>> _get_last_edited("WFIGS_Incident_Locations_Current").tzinfo
         datetime.timezone.utc
     """
-    layer = _get_json(f"{BASE_URL}/{service}/FeatureServer/0", {"f": "json"}, get)
-    editing_info = layer.get("editingInfo")
-    if not isinstance(editing_info, dict):
-        raise NIFCError("NIFC layer metadata is missing editingInfo.")
-    last_edit = editing_info.get("lastEditDate")
-    if isinstance(last_edit, bool) or not isinstance(last_edit, int | float):
-        raise NIFCError("NIFC layer metadata has an invalid lastEditDate.")
+    reply = _get_json(f"{BASE_URL}/{service}/FeatureServer/0", {"f": "json"}, get)
+    layer = _check(LayerMetadata, reply, "layer metadata")
+    last_edit = layer.editingInfo.lastEditDate
     try:
         return datetime.fromtimestamp(last_edit / 1000, UTC)
     except (OverflowError, OSError, ValueError) as error:
@@ -230,6 +309,7 @@ def get_active_perimeters(
     """
     return _get_geojson(
         "WFIGS_Interagency_Perimeters_Current",
+        PERIMETER_GEOMETRY,
         where,
         out_fields,
         geometry_precision,
@@ -272,7 +352,12 @@ def get_incidents(
         'FeatureCollection'
     """
     return _get_geojson(
-        "WFIGS_Incident_Locations_Current", where, out_fields, geometry_precision, get
+        "WFIGS_Incident_Locations_Current",
+        INCIDENT_GEOMETRY,
+        where,
+        out_fields,
+        geometry_precision,
+        get,
     )
 
 

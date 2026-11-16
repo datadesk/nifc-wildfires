@@ -6,7 +6,11 @@ build-backend = "setuptools.build_meta"
 name = "nifc-wildfires"
 dynamic = ["version"]
 requires-python = ">=3.11"
-dependencies = ["click", "requests"]
+dependencies = [
+    "click",
+    "pydantic>=2.14.3",
+    "requests",
+]
 authors = [{ name = "Ben Welsh", email = "b@palewi.re" }]
 description = "Download wildfires data from the National Interagency Fire Center"
 keywords = ["wildfires", "nifc", "geojson", "data"]
