@@ -1,5 +1,6 @@
 """Test the NIFC downloads, with fake responses and against the live service."""
 
+import itertools
 from datetime import UTC, datetime
 
 import pytest
@@ -107,9 +108,24 @@ def test_unexpected_reply_raises(fake_get, data):
         nifc_wildfires.get_incidents()
 
 
-def page(count, more=None, top_level=False):
+IDS = itertools.count(1)
+
+
+def feature(geometry="Point", object_id=None):
+    """Build a fake feature with a geometry and an ID that no other has."""
+    return {
+        "type": "Feature",
+        "geometry": {"type": geometry, "coordinates": [[0, 0]]},
+        "properties": {"OBJECTID": next(IDS) if object_id is None else object_id},
+    }
+
+
+def page(count, more=None, top_level=False, geometry="Point"):
     """Build a fake reply with some features and an optional paging flag."""
-    data = {"type": "FeatureCollection", "features": [{"type": "Feature"}] * count}
+    data = {
+        "type": "FeatureCollection",
+        "features": [feature(geometry) for _ in range(count)],
+    }
     if more is not None:
         if top_level:
             data["exceededTransferLimit"] = more
@@ -191,11 +207,13 @@ def test_empty_page_with_more_to_come_raises(fake_get):
 @pytest.mark.unit
 def test_too_many_pages_raises(fake_get, monkeypatch):
     """Test that the page safety limit stops a runaway download."""
-    _, state = fake_get
     monkeypatch.setattr(nifc_wildfires, "MAX_PAGES", 3)
-    state["response"] = page(1, more=True)
+
+    def get(url, **kwargs):
+        return page(1, more=True)
+
     with pytest.raises(nifc_wildfires.NIFCError, match="3-page safety limit"):
-        nifc_wildfires.get_incidents()
+        nifc_wildfires.get_incidents(get=get)
 
 
 @pytest.mark.unit
@@ -203,7 +221,7 @@ def test_invalid_paging_flag_raises(fake_get):
     """Test that a paging flag that is not true or false is an error."""
     _, state = fake_get
     state["response"] = page(1, more="yes")
-    with pytest.raises(nifc_wildfires.NIFCError, match="paging flag"):
+    with pytest.raises(nifc_wildfires.NIFCError, match="exceededTransferLimit"):
         nifc_wildfires.get_incidents()
 
 
@@ -306,7 +324,8 @@ def test_custom_fetcher_is_used_for_every_request(fake_get):
 def test_custom_fetcher_downloads_every_page(fake_get, function):
     """Test that a supplied fetch function is used on every page."""
     default_calls, _ = fake_get
-    pages = [page(1, more=True), page(1, more=False)]
+    geometry = "Polygon" if function == "get_active_perimeters" else "Point"
+    pages = [page(1, True, geometry=geometry), page(1, False, geometry=geometry)]
     mine = []
 
     def get(url, **kwargs):
@@ -328,3 +347,144 @@ def test_custom_fetcher_errors_are_checked_too(fake_get):
 
     with pytest.raises(nifc_wildfires.NIFCError, match="API error"):
         nifc_wildfires.get_incidents(get=get)
+
+
+@pytest.mark.unit
+def test_perimeters_must_be_polygons_and_incidents_points(fake_get):
+    """Test that each layer rejects the wrong kind of shape."""
+    _, state = fake_get
+    state["response"] = page(1, geometry="Point")
+    with pytest.raises(nifc_wildfires.NIFCError, match="geometry"):
+        nifc_wildfires.get_active_perimeters()
+    state["response"] = page(1, geometry="Polygon")
+    with pytest.raises(nifc_wildfires.NIFCError, match="geometry"):
+        nifc_wildfires.get_incidents()
+    state["response"] = page(1, geometry="MultiPolygon")
+    assert nifc_wildfires.get_active_perimeters()["features"]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"type": "Feature", "properties": {}},
+        {"type": "Feature", "geometry": None, "properties": {}},
+        {"type": "Feature", "geometry": {"type": "Point"}, "properties": {}},
+        {"type": "Polygon", "geometry": {"type": "Point", "coordinates": []}},
+        {"type": "Feature", "geometry": {"type": "Point", "coordinates": []}},
+    ],
+)
+def test_malformed_features_raise(fake_get, bad):
+    """Test that features missing a shape or properties are rejected."""
+    _, state = fake_get
+    state["response"] = FakeResponse(
+        data={"type": "FeatureCollection", "features": [bad]}
+    )
+    with pytest.raises(nifc_wildfires.NIFCError, match="expected shape"):
+        nifc_wildfires.get_incidents()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("object_id", ["7", 7.5, True, None])
+def test_object_id_must_be_a_whole_number(fake_get, object_id):
+    """Test that a feature ID that is not a whole number is rejected."""
+    _, state = fake_get
+    bad = feature()
+    bad["properties"]["OBJECTID"] = object_id
+    state["response"] = FakeResponse(
+        data={"type": "FeatureCollection", "features": [bad]}
+    )
+    with pytest.raises(nifc_wildfires.NIFCError, match="OBJECTID"):
+        nifc_wildfires.get_incidents()
+
+
+@pytest.mark.unit
+def test_repeated_ids_raise_within_a_page_and_across_pages(fake_get):
+    """Test that a repeated feature ID is caught, which signals broken paging."""
+    _, state = fake_get
+    twin = [feature(object_id=1), feature(object_id=1)]
+    state["response"] = FakeResponse(
+        data={"type": "FeatureCollection", "features": twin}
+    )
+    with pytest.raises(nifc_wildfires.NIFCError, match="repeated"):
+        nifc_wildfires.get_incidents()
+
+
+def shifting_pages():
+    """Build two pages that share a feature, as paging during an edit can."""
+    first = page(1, more=True)
+    first.data["features"][0]["properties"]["OBJECTID"] = 9
+    second = page(1)
+    second.data["features"][0]["properties"]["OBJECTID"] = 9
+    return [first, second]
+
+
+@pytest.mark.unit
+def test_download_starts_over_when_the_data_shifts(fake_get):
+    """Test that a repeat across pages triggers a fresh download that can succeed."""
+    calls, state = fake_get
+    state["pages"] = [*shifting_pages(), page(1, more=False)]
+    data = nifc_wildfires.get_incidents()
+    assert len(data["features"]) == 1
+    assert [c[1]["params"]["resultOffset"] for c in calls] == [0, 1, 0]
+
+
+@pytest.mark.unit
+def test_download_gives_up_when_the_data_keeps_shifting(fake_get):
+    """Test that endless shifting ends in a clear error after a few attempts."""
+    calls, state = fake_get
+    state["pages"] = [
+        p for _ in range(nifc_wildfires.MAX_ATTEMPTS) for p in shifting_pages()
+    ]
+    with pytest.raises(nifc_wildfires.NIFCError, match="kept changing"):
+        nifc_wildfires.get_incidents()
+    assert len(calls) == 2 * nifc_wildfires.MAX_ATTEMPTS
+
+
+@pytest.mark.unit
+def test_features_without_object_ids_are_allowed(fake_get):
+    """Test that asking for other fields only does not trip the ID checks."""
+    _, state = fake_get
+    bare = feature()
+    bare["properties"] = {"IncidentName": "Example"}
+    state["response"] = FakeResponse(
+        data={"type": "FeatureCollection", "features": [bare]}
+    )
+    assert len(nifc_wildfires.get_incidents(out_fields="IncidentName")["features"]) == 1
+
+
+@pytest.mark.unit
+def test_returned_features_are_the_original_dictionaries(fake_get):
+    """Test that checking the data does not change or rebuild what comes back."""
+    _, state = fake_get
+    original = feature()
+    original["properties"]["extra"] = {"kept": True}
+    state["response"] = FakeResponse(
+        data={"type": "FeatureCollection", "features": [original]}
+    )
+    assert nifc_wildfires.get_incidents()["features"][0] == original
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "settings",
+    [{"where": ""}, {"out_fields": ""}, {"geometry_precision": -1}],
+)
+def test_bad_settings_raise_before_any_request(fake_get, settings):
+    """Test that nonsense settings are rejected without calling NIFC."""
+    calls, _ = fake_get
+    with pytest.raises(nifc_wildfires.NIFCError, match="settings"):
+        nifc_wildfires.get_incidents(**settings)
+    assert calls == []
+
+
+@pytest.mark.unit
+def test_error_messages_do_not_echo_the_data(fake_get):
+    """Test that a bad reply is described without dumping its contents."""
+    _, state = fake_get
+    state["response"] = FakeResponse(
+        data={"type": "FeatureCollection", "features": [{"secret": "x" * 500}]}
+    )
+    with pytest.raises(nifc_wildfires.NIFCError) as error:
+        nifc_wildfires.get_incidents()
+    assert "xxxx" not in str(error.value)

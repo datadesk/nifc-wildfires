@@ -48,8 +48,12 @@ data = nifc_wildfires.get_incidents()
 ```
 
 Both functions download every page of results and return a GeoJSON feature
-collection. If NIFC cannot be reached or sends back an error, they raise
-`nifc_wildfires.NIFCError`.
+collection. The data is checked as it arrives: every feature needs a shape of
+the right type for its layer (polygons for perimeters, points for incidents),
+and feature IDs must be whole numbers that do not repeat. If NIFC cannot be
+reached, sends back an error, or sends data in an unexpected shape, they raise
+`nifc_wildfires.NIFCError`. NIFC edits its data constantly, so a download that
+catches a change halfway through starts over, up to three times.
 
 Choose which features, fields and coordinate precision to download.
 

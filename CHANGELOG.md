@@ -24,6 +24,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Check the data NIFC sends back with Pydantic: the shape of every feature, the
+  geometry type for each layer, whole-number feature IDs, and the paging flag.
+  A download that sees the same feature twice, which happens when NIFC edits its
+  data while pages are being read, starts over up to three times before
+  raising `NIFCError`. Settings such as an empty `where` or a negative
+  `geometry_precision` are rejected before any request is made.
 - Download every page of results. NIFC returns at most 2,000 features per
   request, and anything beyond that was silently left out.
 - Raise a clear `NIFCError` when NIFC replies with an error message, invalid

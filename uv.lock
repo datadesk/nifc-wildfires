@@ -1983,6 +1983,7 @@ name = "nifc-wildfires"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
+    { name = "pydantic" },
     { name = "requests" },
 ]
 
@@ -2043,6 +2044,7 @@ test-extras = [
 [package.metadata]
 requires-dist = [
     { name = "click" },
+    { name = "pydantic", specifier = ">=2.14.3" },
     { name = "requests" },
 ]
 
