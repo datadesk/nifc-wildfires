@@ -93,6 +93,27 @@ line. The problems are written to the `nifc_wildfires` logger as warnings and th
 data is returned exactly as NIFC sent it. A reply with no list of features at
 all cannot be read, so it still raises.
 
+## Using a client
+
+The functions above are shortcuts. To keep settings in one place and reuse them
+across several downloads, make a `NIFCClient`. Besides the fetch function and
+strictness, it holds the request timeout, the page size, and the limits on pages
+and restarts. All have sensible defaults.
+
+```python
+from nifc_wildfires import Layer, NIFCClient, QueryOptions
+
+client = NIFCClient(get=my_get, strict=False, timeout=30)
+perimeters = client.get_active_perimeters()
+incidents = client.get_incidents(QueryOptions(out_fields="OBJECTID,IncidentName"))
+edited = client.get_incidents_last_edited()
+
+# The same, for any layer by name:
+data = client.download(Layer.PERIMETERS)
+```
+
+A client cannot be changed once made. To change a setting, make another one.
+
 Find out when NIFC last edited its data, for example to skip a download when
 nothing has changed.
 
