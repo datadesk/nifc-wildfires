@@ -1,5 +1,6 @@
 """Download wildfires data from the National Interagency Fire Center."""
 
+from datetime import UTC, datetime
 from typing import Any
 
 import requests
@@ -141,6 +142,35 @@ def _has_more_pages(page: dict[str, Any]) -> bool:
     return flag
 
 
+def _get_last_edited(service: str) -> datetime:
+    """Ask NIFC when a feature service's data was last edited.
+
+    Args:
+        service: The name of the NIFC feature service to ask about.
+
+    Returns:
+        The last edit time, in UTC.
+
+    Raises:
+        NIFCError: If NIFC does not report a usable last edit time.
+
+    Examples:
+        >>> _get_last_edited("WFIGS_Incident_Locations_Current").tzinfo
+        datetime.timezone.utc
+    """
+    layer = _get_json(f"{BASE_URL}/{service}/FeatureServer/0", {"f": "json"})
+    editing_info = layer.get("editingInfo")
+    if not isinstance(editing_info, dict):
+        raise NIFCError("NIFC layer metadata is missing editingInfo.")
+    last_edit = editing_info.get("lastEditDate")
+    if isinstance(last_edit, bool) or not isinstance(last_edit, int | float):
+        raise NIFCError("NIFC layer metadata has an invalid lastEditDate.")
+    try:
+        return datetime.fromtimestamp(last_edit / 1000, UTC)
+    except (OverflowError, OSError, ValueError) as error:
+        raise NIFCError("NIFC layer metadata has an invalid lastEditDate.") from error
+
+
 def get_active_perimeters(
     where: str = "1=1",
     out_fields: str = "*",
@@ -209,3 +239,39 @@ def get_incidents(
     return _get_geojson(
         "WFIGS_Incident_Locations_Current", where, out_fields, geometry_precision
     )
+
+
+def get_active_perimeters_last_edited() -> datetime:
+    """Get when NIFC last edited its active fire perimeters.
+
+    Useful for skipping a download when nothing has changed.
+
+    Returns:
+        The last edit time, in UTC.
+
+    Raises:
+        NIFCError: If NIFC cannot be reached or does not report an edit time.
+
+    Examples:
+        >>> get_active_perimeters_last_edited().tzinfo
+        datetime.timezone.utc
+    """
+    return _get_last_edited("WFIGS_Interagency_Perimeters_Current")
+
+
+def get_incidents_last_edited() -> datetime:
+    """Get when NIFC last edited its fire incident points.
+
+    Useful for skipping a download when nothing has changed.
+
+    Returns:
+        The last edit time, in UTC.
+
+    Raises:
+        NIFCError: If NIFC cannot be reached or does not report an edit time.
+
+    Examples:
+        >>> get_incidents_last_edited().tzinfo
+        datetime.timezone.utc
+    """
+    return _get_last_edited("WFIGS_Incident_Locations_Current")

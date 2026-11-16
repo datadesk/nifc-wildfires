@@ -1,5 +1,7 @@
 """Test the NIFC downloads, with fake responses and against the live service."""
 
+from datetime import UTC, datetime
+
 import pytest
 
 import nifc_wildfires
@@ -230,3 +232,53 @@ def test_live_incidents():
     assert data["type"] == "FeatureCollection"
     for feature in data["features"]:
         assert feature["geometry"]["type"] == "Point"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("function", "service"),
+    [
+        ("get_active_perimeters_last_edited", "WFIGS_Interagency_Perimeters_Current"),
+        ("get_incidents_last_edited", "WFIGS_Incident_Locations_Current"),
+    ],
+)
+def test_last_edited_reads_the_layer_metadata(fake_get, function, service):
+    """Test that the last edit time comes from the right layer, in UTC."""
+    calls, state = fake_get
+    state["response"] = FakeResponse(
+        data={"editingInfo": {"lastEditDate": 1794865327701}}
+    )
+    result = getattr(nifc_wildfires, function)()
+    assert result == datetime(2026, 11, 16, 21, 42, 7, 701000, tzinfo=UTC)
+    assert service in calls[0][0]
+    assert calls[0][1]["params"] == {"f": "json"}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "data",
+    [
+        {},
+        {"editingInfo": []},
+        {"editingInfo": {}},
+        {"editingInfo": {"lastEditDate": "soon"}},
+        {"editingInfo": {"lastEditDate": True}},
+        {"editingInfo": {"lastEditDate": 1e30}},
+    ],
+)
+def test_last_edited_rejects_bad_metadata(fake_get, data):
+    """Test that missing or nonsense edit times raise a clear error."""
+    _, state = fake_get
+    state["response"] = FakeResponse(data=data)
+    with pytest.raises(nifc_wildfires.NIFCError):
+        nifc_wildfires.get_incidents_last_edited()
+
+
+@pytest.mark.integration
+def test_live_last_edited():
+    """Test that the live layers report a recent edit time in UTC."""
+    for function in (
+        nifc_wildfires.get_active_perimeters_last_edited,
+        nifc_wildfires.get_incidents_last_edited,
+    ):
+        assert function().tzinfo is not None

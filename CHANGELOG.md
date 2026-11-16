@@ -8,6 +8,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Add `get_active_perimeters_last_edited` and `get_incidents_last_edited`,
+  which report when NIFC last edited each layer so callers can skip a download
+  when nothing has changed.
 - Add `where`, `out_fields` and `geometry_precision` settings to
   `get_active_perimeters` and `get_incidents`, and matching `--where`,
   `--out-fields` and `--geometry-precision` command-line options. The defaults
