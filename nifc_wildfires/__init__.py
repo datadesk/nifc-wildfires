@@ -50,14 +50,25 @@ def _get_json(url: str, params: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
-def _get_geojson(service: str) -> dict[str, Any]:
-    """Request every feature from one NIFC feature service as GeoJSON.
+def _get_geojson(
+    service: str,
+    where: str = "1=1",
+    out_fields: str = "*",
+    geometry_precision: int | None = None,
+) -> dict[str, Any]:
+    """Request features from one NIFC feature service as GeoJSON.
 
     NIFC returns a limited number of features per request, so this keeps asking
     for the next page until NIFC says there are no more.
 
     Args:
         service: The name of the NIFC feature service to query.
+        where: A SQL-style filter that picks which features to return. The
+            default returns all of them.
+        out_fields: The fields to return, as a comma-separated string. The
+            default returns all of them.
+        geometry_precision: The number of decimal places to keep in coordinates.
+            The default keeps everything NIFC sends.
 
     Returns:
         A GeoJSON feature collection with the features from every page.
@@ -75,17 +86,17 @@ def _get_geojson(service: str) -> dict[str, Any]:
     features: list[Any] = []
     offset = 0
     for _ in range(MAX_PAGES):
-        page = _get_json(
-            f"{BASE_URL}/{service}/FeatureServer/0/query",
-            {
-                "outFields": "*",
-                "where": "1=1",
-                "orderByFields": "OBJECTID",
-                "resultOffset": offset,
-                "resultRecordCount": PAGE_SIZE,
-                "f": "geojson",
-            },
-        )
+        params: dict[str, Any] = {
+            "outFields": out_fields,
+            "where": where,
+            "orderByFields": "OBJECTID",
+            "resultOffset": offset,
+            "resultRecordCount": PAGE_SIZE,
+            "f": "geojson",
+        }
+        if geometry_precision is not None:
+            params["geometryPrecision"] = geometry_precision
+        page = _get_json(f"{BASE_URL}/{service}/FeatureServer/0/query", params)
         page_features = page.get("features")
         if not isinstance(page_features, list):
             raise NIFCError("NIFC response is missing its feature list.")
@@ -130,8 +141,21 @@ def _has_more_pages(page: dict[str, Any]) -> bool:
     return flag
 
 
-def get_active_perimeters() -> dict[str, Any]:
+def get_active_perimeters(
+    where: str = "1=1",
+    out_fields: str = "*",
+    geometry_precision: int | None = None,
+) -> dict[str, Any]:
     """Get fire perimeters of all active fires from NIFC.
+
+
+    Args:
+        where: A SQL-style filter that picks which features to return. The
+            default returns all of them.
+        out_fields: The fields to return, as a comma-separated string. The
+            default returns all of them.
+        geometry_precision: The number of decimal places to keep in coordinates.
+            The default keeps everything NIFC sends.
 
     Returns:
         A GeoJSON object with multipolygon geometry.
@@ -143,14 +167,33 @@ def get_active_perimeters() -> dict[str, Any]:
         >>> data = get_active_perimeters()
         >>> data["type"]
         'FeatureCollection'
+        >>> wildfires = get_active_perimeters(
+        ...     where="attr_IncidentTypeCategory='WF'",
+        ...     out_fields="OBJECTID,poly_IncidentName",
+        ...     geometry_precision=5,
+        ... )
     """
-    return _get_geojson("WFIGS_Interagency_Perimeters_Current")
+    return _get_geojson(
+        "WFIGS_Interagency_Perimeters_Current", where, out_fields, geometry_precision
+    )
 
 
-def get_incidents() -> dict[str, Any]:
+def get_incidents(
+    where: str = "1=1",
+    out_fields: str = "*",
+    geometry_precision: int | None = None,
+) -> dict[str, Any]:
     """Get year-to-date fire incident points from NIFC situation reports.
 
     Includes active and inactive incidents.
+
+    Args:
+        where: A SQL-style filter that picks which features to return. The
+            default returns all of them.
+        out_fields: The fields to return, as a comma-separated string. The
+            default returns all of them.
+        geometry_precision: The number of decimal places to keep in coordinates.
+            The default keeps everything NIFC sends.
 
     Returns:
         A GeoJSON object with point geometry.
@@ -163,4 +206,6 @@ def get_incidents() -> dict[str, Any]:
         >>> data["type"]
         'FeatureCollection'
     """
-    return _get_geojson("WFIGS_Incident_Locations_Current")
+    return _get_geojson(
+        "WFIGS_Incident_Locations_Current", where, out_fields, geometry_precision
+    )
