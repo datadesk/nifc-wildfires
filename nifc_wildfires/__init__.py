@@ -6,6 +6,8 @@ import requests
 
 BASE_URL = "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services"
 TIMEOUT = 60
+PAGE_SIZE = 1000
+MAX_PAGES = 100
 
 
 class NIFCError(Exception):
@@ -51,27 +53,81 @@ def _get_json(url: str, params: dict[str, Any]) -> dict[str, Any]:
 def _get_geojson(service: str) -> dict[str, Any]:
     """Request every feature from one NIFC feature service as GeoJSON.
 
+    NIFC returns a limited number of features per request, so this keeps asking
+    for the next page until NIFC says there are no more.
+
     Args:
         service: The name of the NIFC feature service to query.
 
     Returns:
-        The GeoJSON response parsed into a dictionary.
+        A GeoJSON feature collection with the features from every page.
 
     Raises:
-        NIFCError: If the request fails or the reply is not a list of features.
+        NIFCError: If a request fails, a reply is not a list of features, the
+            pages stop before NIFC says it is done, or there are more than
+            ``MAX_PAGES`` pages.
 
     Examples:
         >>> data = _get_geojson("WFIGS_Incident_Locations_Current")
         >>> data["type"]
         'FeatureCollection'
     """
-    data = _get_json(
-        f"{BASE_URL}/{service}/FeatureServer/0/query",
-        {"outFields": "*", "where": "1=1", "f": "geojson"},
-    )
-    if not isinstance(data.get("features"), list):
-        raise NIFCError("NIFC response is missing its feature list.")
-    return data
+    features: list[Any] = []
+    offset = 0
+    for _ in range(MAX_PAGES):
+        page = _get_json(
+            f"{BASE_URL}/{service}/FeatureServer/0/query",
+            {
+                "outFields": "*",
+                "where": "1=1",
+                "orderByFields": "OBJECTID",
+                "resultOffset": offset,
+                "resultRecordCount": PAGE_SIZE,
+                "f": "geojson",
+            },
+        )
+        page_features = page.get("features")
+        if not isinstance(page_features, list):
+            raise NIFCError("NIFC response is missing its feature list.")
+        features.extend(page_features)
+        if not _has_more_pages(page):
+            return {"type": "FeatureCollection", "features": features}
+        if not page_features:
+            raise NIFCError("NIFC paging ended before all features were read.")
+        offset += len(page_features)
+    raise NIFCError(f"NIFC exceeded the {MAX_PAGES}-page safety limit.")
+
+
+def _has_more_pages(page: dict[str, Any]) -> bool:
+    """Check whether NIFC says more features are waiting after this page.
+
+    NIFC puts the flag inside ``properties`` in GeoJSON replies, and at the top
+    level in other formats, so both places are checked.
+
+    Args:
+        page: One reply from NIFC.
+
+    Returns:
+        True if there are more pages to request.
+
+    Raises:
+        NIFCError: If the flag is present but is not true or false.
+
+    Examples:
+        >>> _has_more_pages({"properties": {"exceededTransferLimit": True}})
+        True
+        >>> _has_more_pages({"features": []})
+        False
+    """
+    properties = page.get("properties")
+    if not isinstance(properties, dict):
+        properties = {}
+    flag = properties.get("exceededTransferLimit", page.get("exceededTransferLimit"))
+    if flag is None:
+        return False
+    if not isinstance(flag, bool):
+        raise NIFCError("NIFC returned an invalid paging flag.")
+    return flag
 
 
 def get_active_perimeters() -> dict[str, Any]:

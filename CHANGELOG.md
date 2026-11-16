@@ -15,6 +15,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Download every page of results. NIFC returns at most 2,000 features per
+  request, and anything beyond that was silently left out.
 - Raise a clear `NIFCError` when NIFC replies with an error message, invalid
   JSON or something other than a list of features. Before, an error message
   inside a successful reply was returned as if it were fire data.
