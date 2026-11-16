@@ -55,7 +55,7 @@ You can launch a preview site with the following command:
 make serve-docs
 ```
 
-The documentation site is automatically built by a [GitHub Actions workflow](.github/workflows/docs.yaml) that runs on every push and pull request. It checks links weekly. Protect the `docs-production` environment, configure its AWS OIDC role, and set `DOCS_DEPLOY_ENABLED` to `true` to publish the reviewed artifact from the main branch.
+The documentation site is automatically built by a [GitHub Actions workflow](.github/workflows/docs.yaml) that runs on every push and pull request. It checks links weekly. Pushes to the main branch publish the reviewed artifact.
 
 ## Releasing
 
