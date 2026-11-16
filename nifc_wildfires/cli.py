@@ -1,12 +1,20 @@
 """Command-line interface for downloading wildfire data from NIFC."""
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
 
 import click
+import requests
 from pydantic import ValidationError
 
-from nifc_wildfires import QueryOptions, get_active_perimeters, get_incidents
+from nifc_wildfires import (
+    Layer,
+    NIFCClient,
+    NIFCError,
+    NIFCValidationError,
+    QueryOptions,
+)
 
 
 @click.group()
@@ -20,8 +28,42 @@ def cmd() -> None:
     """
 
 
-def shared_options(function: Callable[..., None]) -> Callable[..., None]:
-    """Add the options that shape and check what a command downloads.
+def common_options(function: Callable[..., None]) -> Callable[..., None]:
+    """Add the options every command shares.
+
+    Args:
+        function: The command function to add the options to.
+
+    Returns:
+        The same function with the ``--timeout`` and ``--verbose`` options
+        attached.
+
+    Examples:
+        >>> @click.command()
+        ... @common_options
+        ... def example(timeout, verbose): ...
+    """
+    for option in reversed(
+        [
+            click.option(
+                "--timeout",
+                type=click.FloatRange(min=0, min_open=True),
+                default=None,
+                help="Seconds to wait for each request. Defaults to 60.",
+            ),
+            click.option(
+                "--verbose",
+                is_flag=True,
+                help="When a download fails, list every problem found.",
+            ),
+        ]
+    ):
+        function = option(function)
+    return function
+
+
+def download_options(function: Callable[..., None]) -> Callable[..., None]:
+    """Add the options that shape and check what a download command fetches.
 
     Args:
         function: The command function to add the options to.
@@ -32,7 +74,7 @@ def shared_options(function: Callable[..., None]) -> Callable[..., None]:
 
     Examples:
         >>> @click.command()
-        ... @shared_options
+        ... @download_options
         ... def example(where, out_fields, geometry_precision, strict): ...
     """
     for option in reversed(
@@ -89,10 +131,94 @@ def build_options(
         raise click.UsageError(problems) from error
 
 
+def build_client(strict: bool = True, timeout: float | None = None) -> NIFCClient:
+    """Make the client a command downloads with.
+
+    Args:
+        strict: Whether to stop on data that is not in the expected shape.
+        timeout: The seconds to wait for each request, or None for the default.
+
+    Returns:
+        The client.
+
+    Examples:
+        >>> build_client(strict=False, timeout=30).timeout
+        30
+    """
+    if timeout is None:
+        return NIFCClient(strict=strict)
+    return NIFCClient(strict=strict, timeout=timeout)
+
+
+@contextmanager
+def clean_errors(verbose: bool = False) -> Generator[None]:
+    """Show a failed download as a short message and a failing exit code.
+
+    Without this, a failure prints a long traceback. Nothing has been written to
+    the output by the time a download fails, so a redirect such as
+    ``> perimeters.json`` is left empty, never half full.
+
+    Args:
+        verbose: If True, list every problem found in data that was not in the
+            expected shape, not only the first few.
+
+    Yields:
+        Nothing. Run the download inside the ``with`` block.
+
+    Raises:
+        click.ClickException: If the download fails for any reason this package
+            knows about. Click prints ``Error: `` and the message to standard
+            error and exits with code 1.
+
+    Examples:
+        >>> with clean_errors():
+        ...     pass
+    """
+    try:
+        yield
+    except NIFCValidationError as error:
+        lines = [str(error)]
+        if verbose:
+            shown = error.problems
+            lines.append(
+                f"{error.problem_count} problem(s) in all, {len(shown)} shown:"
+            )
+            lines += [
+                f"  {'.'.join(str(part) for part in p.location)}: {p.message}"
+                for p in shown
+            ]
+        else:
+            lines.append(
+                "Run again with --verbose to list every problem, or with --no-strict to carry on."
+            )
+        raise click.ClickException("\n".join(lines)) from error
+    except NIFCError as error:
+        raise click.ClickException(str(error)) from error
+    except requests.Timeout as error:
+        raise click.ClickException(
+            "NIFC did not answer in time. Try again, or raise --timeout."
+        ) from error
+    except requests.RequestException as error:
+        message = f"Could not reach NIFC ({type(error).__name__})."
+        if verbose:
+            message += f"\n{error}"
+        else:
+            message += (
+                " Check your connection and try again, or use --verbose for details."
+            )
+        raise click.ClickException(message) from error
+
+
 @cmd.command(help="Perimeters of active fires")
-@shared_options
+@download_options
+@common_options
 def active_perimeters(
-    where: str, out_fields: str, geometry_precision: int | None, strict: bool
+    where: str,
+    out_fields: str,
+    geometry_precision: int | None,
+    strict: bool,
+    timeout: float | None,
+    verbose: bool,
 ) -> None:
     """Print the perimeters of active fires as GeoJSON.
 
@@ -101,21 +227,30 @@ def active_perimeters(
         out_fields: The fields to return, as a comma-separated string.
         geometry_precision: The decimal places to keep in coordinates.
         strict: Whether to stop on data that is not in the expected shape.
+        timeout: The seconds to wait for each request, or None for the default.
+        verbose: Whether to list every problem when a download fails.
 
     Examples:
         $ nifcwildfires active-perimeters
         $ nifcwildfires active-perimeters --where "attr_IncidentTypeCategory='WF'"
+        $ nifcwildfires active-perimeters --timeout 120 --no-strict
     """
-    data = get_active_perimeters(
-        build_options(where, out_fields, geometry_precision), strict=strict
-    )
+    options = build_options(where, out_fields, geometry_precision)
+    with clean_errors(verbose):
+        data = build_client(strict, timeout).get_active_perimeters(options)
     click.echo(json.dumps(data))
 
 
 @cmd.command(help="All YTD fire incident points from NIFC situation reports")
-@shared_options
+@download_options
+@common_options
 def incidents(
-    where: str, out_fields: str, geometry_precision: int | None, strict: bool
+    where: str,
+    out_fields: str,
+    geometry_precision: int | None,
+    strict: bool,
+    timeout: float | None,
+    verbose: bool,
 ) -> None:
     """Print all year-to-date fire incident points as GeoJSON.
 
@@ -124,15 +259,40 @@ def incidents(
         out_fields: The fields to return, as a comma-separated string.
         geometry_precision: The decimal places to keep in coordinates.
         strict: Whether to stop on data that is not in the expected shape.
+        timeout: The seconds to wait for each request, or None for the default.
+        verbose: Whether to list every problem when a download fails.
 
     Examples:
         $ nifcwildfires incidents
         $ nifcwildfires incidents --out-fields OBJECTID,IncidentName
     """
-    data = get_incidents(
-        build_options(where, out_fields, geometry_precision), strict=strict
-    )
+    options = build_options(where, out_fields, geometry_precision)
+    with clean_errors(verbose):
+        data = build_client(strict, timeout).get_incidents(options)
     click.echo(json.dumps(data))
+
+
+@cmd.command(
+    help="When NIFC last edited a layer, as a UTC time. Use it to skip a download."
+)
+@click.argument("layer", type=click.Choice(["active-perimeters", "incidents"]))
+@common_options
+def last_edited(layer: str, timeout: float | None, verbose: bool) -> None:
+    """Print when NIFC last edited a layer, as an ISO 8601 time in UTC.
+
+    Args:
+        layer: Which layer to ask about, ``active-perimeters`` or ``incidents``.
+        timeout: The seconds to wait for each request, or None for the default.
+        verbose: Whether to list every problem when the request fails.
+
+    Examples:
+        $ nifcwildfires last-edited active-perimeters
+        2026-11-16T21:42:07.701000+00:00
+    """
+    which = Layer.PERIMETERS if layer == "active-perimeters" else Layer.INCIDENTS
+    with clean_errors(verbose):
+        edited = build_client(timeout=timeout).last_edited(which)
+    click.echo(edited.isoformat())
 
 
 if __name__ == "__main__":

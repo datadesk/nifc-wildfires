@@ -18,8 +18,9 @@ uv add nifc-wildfires
 ```sh
 Usage: nifcwildfires [OPTIONS] COMMAND [ARGS]...
 
-  A command-line interface for downloading wildfire perimeter and incident points data from
-  NIFC. Returns GeoJSON.
+  Download wildfire perimeter and incident points data from NIFC.
+
+  Returns GeoJSON.
 
 Options:
   --help  Show this message and exit.
@@ -27,6 +28,7 @@ Options:
 Commands:
   active-perimeters  Perimeters of active fires
   incidents          All YTD fire incident points from NIFC situation reports
+  last-edited        When NIFC last edited a layer, as a UTC time.
 ```
 
 From the shell:
@@ -35,6 +37,33 @@ From the shell:
 nifcwildfires active-perimeters
 nifcwildfires incidents
 ```
+
+Both download commands print valid JSON, and share these options.
+
+| Option | What it does |
+| --- | --- |
+| `--where TEXT` | A SQL-style filter that picks which features to return. |
+| `--out-fields TEXT` | The fields to return, separated by commas. |
+| `--geometry-precision INTEGER` | The decimal places to keep in coordinates. |
+| `--strict / --no-strict` | Stop on data that is not in the expected shape (the default), or log it and carry on. |
+| `--timeout FLOAT` | Seconds to wait for each request. The default is 60. |
+| `--verbose` | When a download fails, list every problem found. |
+
+```sh
+nifcwildfires active-perimeters --where "attr_IncidentTypeCategory='WF'" --geometry-precision 5
+```
+
+Ask when NIFC last edited a layer, for example to skip a download when nothing
+has changed. The time is in UTC. `last-edited` also takes `--timeout` and
+`--verbose`.
+
+```sh
+nifcwildfires last-edited active-perimeters
+```
+
+A failure prints one line starting with `Error:` to standard error and exits with
+a non-zero code, with nothing written to standard output. Data in an unexpected
+shape adds a hint to run again with `--verbose` or `--no-strict`.
 
 ## Python usage
 

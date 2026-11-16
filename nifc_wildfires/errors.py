@@ -22,7 +22,7 @@ class ValidationProblem:
 
 
 class NIFCError(Exception):
-    """Raised when NIFC cannot be reached or sends back something unexpected."""
+    """Raised when NIFC sends back an error, a failed status or something unexpected."""
 
 
 class NIFCValidationError(NIFCError):

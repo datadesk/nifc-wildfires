@@ -117,7 +117,8 @@ class NIFCClient:
         Raises:
             NIFCValidationError: If strict and the data does not have the expected
                 shape, or if a reply has no list of features at all.
-            NIFCError: If NIFC cannot be reached or sends back an error.
+            NIFCError: If NIFC sends back an error or a failed status. Problems
+                reaching NIFC at all raise the ``requests`` library's own errors.
 
         Examples:
             >>> data = NIFCClient().get_active_perimeters()
@@ -141,7 +142,8 @@ class NIFCClient:
         Raises:
             NIFCValidationError: If strict and the data does not have the expected
                 shape, or if a reply has no list of features at all.
-            NIFCError: If NIFC cannot be reached or sends back an error.
+            NIFCError: If NIFC sends back an error or a failed status. Problems
+                reaching NIFC at all raise the ``requests`` library's own errors.
 
         Examples:
             >>> data = NIFCClient().get_incidents()
@@ -162,7 +164,8 @@ class NIFCClient:
             NIFCValidationError: If NIFC does not report a usable edit time. There
                 is nothing to pass along in that case, so ``strict`` does not
                 apply here.
-            NIFCError: If NIFC cannot be reached or sends back an error.
+            NIFCError: If NIFC sends back an error or a failed status. Problems
+                reaching NIFC at all raise the ``requests`` library's own errors.
 
         Examples:
             >>> NIFCClient().get_active_perimeters_last_edited().tzinfo
@@ -180,7 +183,8 @@ class NIFCClient:
 
         Raises:
             NIFCValidationError: If NIFC does not report a usable edit time.
-            NIFCError: If NIFC cannot be reached or sends back an error.
+            NIFCError: If NIFC sends back an error or a failed status. Problems
+                reaching NIFC at all raise the ``requests`` library's own errors.
 
         Examples:
             >>> NIFCClient().get_incidents_last_edited().tzinfo
