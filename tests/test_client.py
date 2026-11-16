@@ -102,7 +102,7 @@ def test_settings_are_used_for_each_request():
     url, params, timeout = fetch.calls[0]
     assert timeout == 7
     assert params["resultRecordCount"] == 25
-    assert Layer.INCIDENTS.value in url
+    assert Layer.CURRENT_INCIDENTS.value in url
 
 
 @pytest.mark.unit
@@ -130,10 +130,10 @@ def test_methods_choose_the_right_layer():
     client.get_incidents_last_edited()
     client.get_active_perimeters_last_edited()
     urls = [call[0] for call in fetch.calls]
-    assert Layer.INCIDENTS.value in urls[0]
-    assert Layer.PERIMETERS.value in urls[1]
-    assert Layer.INCIDENTS.value in urls[2]
-    assert Layer.PERIMETERS.value in urls[3]
+    assert Layer.CURRENT_INCIDENTS.value in urls[0]
+    assert Layer.CURRENT_PERIMETERS.value in urls[1]
+    assert Layer.CURRENT_INCIDENTS.value in urls[2]
+    assert Layer.CURRENT_PERIMETERS.value in urls[3]
 
 
 @pytest.mark.unit
@@ -141,8 +141,10 @@ def test_download_and_last_edited_take_any_layer():
     """Test the general methods that the named ones are built on."""
     fetch = Recorder(good_page(), Reply({"editingInfo": {"lastEditDate": 0}}))
     client = NIFCClient(get=fetch)
-    assert len(client.download(Layer.INCIDENTS)["features"]) == 1
-    assert client.last_edited(Layer.INCIDENTS) == datetime(1970, 1, 1, tzinfo=UTC)
+    assert len(client.download(Layer.CURRENT_INCIDENTS)["features"]) == 1
+    assert client.last_edited(Layer.CURRENT_INCIDENTS) == datetime(
+        1970, 1, 1, tzinfo=UTC
+    )
 
 
 @pytest.mark.unit

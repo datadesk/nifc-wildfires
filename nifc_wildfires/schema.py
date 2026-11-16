@@ -134,15 +134,64 @@ _INCIDENT_TYPE_INFO: dict[IncidentType, tuple[IncidentKind, str]] = {
 class Layer(StrEnum):
     """The NIFC layers this package can download, named by their service.
 
+    The names say what each layer holds, because "incidents" alone is easy to
+    mistake for all of them. The current layers hold only fires that are still
+    active or were recently updated, so they are small. The year-to-date layers
+    hold every fire since January 1.
+
+    Attributes:
+        CURRENT_PERIMETERS: Outlines of fires that are not out yet.
+        CURRENT_INCIDENTS: Points for incidents that are active or were updated
+            recently, a few hundred at a time.
+        INCIDENTS_LAST_24_HOURS: Points for incidents started or updated in the
+            last day.
+        INCIDENTS_YEAR_TO_DATE: Points for every incident since January 1.
+        PERIMETERS_YEAR_TO_DATE: Outlines for every fire since January 1. This is
+            large, about 115 MB with full coordinates in November 2026, so narrow
+            it with options.
+
     Examples:
-        >>> Layer.INCIDENTS.value
+        >>> Layer.CURRENT_INCIDENTS.value
         'WFIGS_Incident_Locations_Current'
-        >>> sorted(Layer.PERIMETERS.geometry_types)
+        >>> sorted(Layer.CURRENT_PERIMETERS.geometry_types)
         ['MultiPolygon', 'Polygon']
+        >>> Layer.INCIDENTS_YEAR_TO_DATE.cli_name
+        'incidents-year-to-date'
     """
 
-    PERIMETERS = "WFIGS_Interagency_Perimeters_Current"
-    INCIDENTS = "WFIGS_Incident_Locations_Current"
+    CURRENT_PERIMETERS = "WFIGS_Interagency_Perimeters_Current"
+    CURRENT_INCIDENTS = "WFIGS_Incident_Locations_Current"
+    INCIDENTS_LAST_24_HOURS = "WFIGS_Incident_Locations_Last24h"
+    INCIDENTS_YEAR_TO_DATE = "WFIGS_Incident_Locations_YearToDate"
+    PERIMETERS_YEAR_TO_DATE = "WFIGS_Interagency_Perimeters_YearToDate"
+
+    @property
+    def is_perimeters(self) -> bool:
+        """Whether this layer holds fire outlines, not incident points.
+
+        Returns:
+            True for the perimeter layers.
+
+        Examples:
+            >>> Layer.CURRENT_PERIMETERS.is_perimeters
+            True
+            >>> Layer.INCIDENTS_LAST_24_HOURS.is_perimeters
+            False
+        """
+        return self in (Layer.CURRENT_PERIMETERS, Layer.PERIMETERS_YEAR_TO_DATE)
+
+    @property
+    def cli_name(self) -> str:
+        """The name of this layer on the command line.
+
+        Returns:
+            The lowercase, hyphenated name.
+
+        Examples:
+            >>> Layer.INCIDENTS_LAST_24_HOURS.cli_name
+            'incidents-last-24-hours'
+        """
+        return self.name.lower().replace("_", "-")
 
     @property
     def geometry_types(self) -> frozenset[str]:
@@ -152,10 +201,10 @@ class Layer(StrEnum):
             The allowed geometry type names.
 
         Examples:
-            >>> sorted(Layer.INCIDENTS.geometry_types)
+            >>> sorted(Layer.CURRENT_INCIDENTS.geometry_types)
             ['Point']
         """
-        if self is Layer.PERIMETERS:
+        if self.is_perimeters:
             return frozenset({"Polygon", "MultiPolygon"})
         return frozenset({"Point"})
 
@@ -163,19 +212,19 @@ class Layer(StrEnum):
     def incident_type_field(self) -> str:
         """The name of the field that holds the incident type in this layer.
 
-        The two layers spell it differently, which is easy to get wrong in a
-        hand-written filter.
+        The perimeter and incident layers spell it differently, which is easy to
+        get wrong in a hand-written filter.
 
         Returns:
             The field name.
 
         Examples:
-            >>> Layer.INCIDENTS.incident_type_field
+            >>> Layer.CURRENT_INCIDENTS.incident_type_field
             'IncidentTypeCategory'
-            >>> Layer.PERIMETERS.incident_type_field
+            >>> Layer.PERIMETERS_YEAR_TO_DATE.incident_type_field
             'attr_IncidentTypeCategory'
         """
-        if self is Layer.PERIMETERS:
+        if self.is_perimeters:
             return "attr_IncidentTypeCategory"
         return "IncidentTypeCategory"
 
@@ -205,7 +254,9 @@ class QueryOptions(BaseModel):
         ... )
         >>> QueryOptions().out_fields
         '*'
-        >>> QueryOptions(exclude_incident_types={"RX"}).where_for(Layer.INCIDENTS)
+        >>> QueryOptions(exclude_incident_types={"RX"}).where_for(
+        ...     Layer.CURRENT_INCIDENTS
+        ... )
         "(IncidentTypeCategory IS NULL OR IncidentTypeCategory NOT IN ('RX'))"
     """
 
@@ -255,9 +306,9 @@ class QueryOptions(BaseModel):
             The filter. With no incident type settings it is ``where`` as given.
 
         Examples:
-            >>> QueryOptions(incident_types={"WF"}).where_for(Layer.PERIMETERS)
+            >>> QueryOptions(incident_types={"WF"}).where_for(Layer.CURRENT_PERIMETERS)
             "attr_IncidentTypeCategory IN ('WF')"
-            >>> QueryOptions(where="OBJECTID > 5").where_for(Layer.INCIDENTS)
+            >>> QueryOptions(where="OBJECTID > 5").where_for(Layer.CURRENT_INCIDENTS)
             'OBJECTID > 5'
         """
         field = layer.incident_type_field

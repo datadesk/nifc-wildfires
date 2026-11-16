@@ -254,9 +254,8 @@ def test_live_paging_returns_everything(monkeypatch):
         if "kept changing" in str(error):
             pytest.skip("NIFC data kept changing during the download")
         raise
-    # Live edits can add or remove a few incidents between the two downloads.
-    allowed_drift = max(5, len(whole["features"]) // 50)
-    assert abs(len(paged["features"]) - len(whole["features"])) <= allowed_drift
+    # NIFC refreshes every few minutes, so a few records can come or go.
+    assert abs(len(paged["features"]) - len(whole["features"])) <= 10
 
 
 @pytest.mark.integration
@@ -526,10 +525,10 @@ def test_options_are_frozen_and_comparable():
 @pytest.mark.unit
 def test_layers_name_their_services_and_shapes():
     """Test that each layer carries its NIFC service name and allowed shapes."""
-    assert Layer.PERIMETERS.value == "WFIGS_Interagency_Perimeters_Current"
-    assert Layer.INCIDENTS.value == "WFIGS_Incident_Locations_Current"
-    assert Layer.PERIMETERS.geometry_types == {"Polygon", "MultiPolygon"}
-    assert Layer.INCIDENTS.geometry_types == {"Point"}
+    assert Layer.CURRENT_PERIMETERS.value == "WFIGS_Interagency_Perimeters_Current"
+    assert Layer.CURRENT_INCIDENTS.value == "WFIGS_Incident_Locations_Current"
+    assert Layer.CURRENT_PERIMETERS.geometry_types == {"Polygon", "MultiPolygon"}
+    assert Layer.CURRENT_INCIDENTS.geometry_types == {"Point"}
 
 
 @pytest.mark.unit

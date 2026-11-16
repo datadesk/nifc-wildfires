@@ -8,6 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Add the year-to-date incident and perimeter layers and the last-24-hours incident
+  layer, a `download` command that reaches any layer by name, and `last-edited`
+  for every layer. The `Layer` names say what each holds, for example
+  `CURRENT_INCIDENTS` and `INCIDENTS_YEAR_TO_DATE`.
+- Ship a `py.typed` marker, so type checkers in other projects can see this
+  package's types.
+- Add a real README, a guide to which layer is which, and a note on where the
+  data comes from and its terms.
 - Add `IncidentKind` and widen `IncidentType` to the 13 fire and fire management
   categories of the NWCG Event Kind and Event Category standard. Each category
   has a `kind` and a `label`. `--incident-type` and `--exclude-incident-type`
@@ -59,6 +67,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Stop describing the `incidents` command and `get_incidents` as year-to-date.
+  They download NIFC's current layer, a few hundred recently active incidents,
+  not the tens of thousands of the whole year.
 - Check the data NIFC sends back with Pydantic: the shape of every feature, the
   geometry type for each layer, whole-number feature IDs, and the paging flag.
   A download that sees the same feature twice, which happens when NIFC edits its

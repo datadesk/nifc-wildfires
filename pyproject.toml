@@ -92,6 +92,9 @@ notebooks = [
 [tool.setuptools]
 packages = ["nifc_wildfires"]
 
+[tool.setuptools.package-data]
+nifc_wildfires = ["py.typed"]
+
 [tool.setuptools_scm]
 
 [tool.ruff]

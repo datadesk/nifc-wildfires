@@ -128,14 +128,18 @@ def get_incidents(
     get: Fetcher | None = None,
     strict: bool = True,
 ) -> dict[str, Any]:
-    """Get year-to-date fire incident points from NIFC situation reports.
+    """Get the current fire incident points from NIFC.
 
-    Includes active and inactive incidents, and prescribed burns (type ``RX``),
-    which are fires lit on purpose and can be most of the points. Leave them out
-    with ``QueryOptions(exclude_incident_types={IncidentType.PRESCRIBED_FIRE})``.
-    This is a shortcut for
-    ``NIFCClient(get=get, strict=strict)``. Make a client yourself to reuse
-    settings across several downloads.
+    This is NIFC's current layer: incidents that are still active or were updated
+    recently, a few hundred at a time. It is not the whole year. For that, use
+    ``NIFCClient().download(Layer.INCIDENTS_YEAR_TO_DATE)``.
+
+    It includes prescribed burns (type ``RX``), which are fires lit on purpose and
+    can be most of the points. Leave them out with
+    ``QueryOptions(exclude_incident_types={IncidentType.PRESCRIBED_FIRE})``.
+
+    This is a shortcut for ``NIFCClient(get=get, strict=strict)``. Make a client
+    yourself to reuse settings across several downloads.
 
     Args:
         options: The settings that shape the query. The default returns every
