@@ -28,10 +28,10 @@ notebook tools belong in `[dependency-groups]`.
 Document the package's public behavior in the Sphinx source under `docs/`.
 Update it with every user-facing API or behavior change, and build it with
 `make docs-check`. The documentation workflow builds the site on pushes and
-pull requests, checks links weekly, and deploys only its reviewed build
-artifact. To publish, protect the `docs-production` environment, configure an
-AWS OIDC role with `DOCS_AWS_ROLE_ARN` and `DOCS_AWS_REGION`, and set the
-`DOCS_DEPLOY_ENABLED` repository variable to `true`.
+pull requests, checks links weekly, and on pushes to `main` deploys the built
+site to the `nifc-wildfires` path of the palewire docs bucket. It signs in to AWS
+with the `PALEWIRE_DOCS_AWS_*` repository secrets. Moving to short-lived AWS role
+login would be safer.
 
 ## Development Workflow
 
