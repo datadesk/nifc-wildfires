@@ -27,10 +27,12 @@ class FakeResponse:
 def fake_get(monkeypatch):
     """Replace the network request and record the calls made."""
     calls = []
-    state = {"response": FakeResponse()}
+    state = {"response": FakeResponse(), "pages": []}
 
     def get(url, **kwargs):
         calls.append((url, kwargs))
+        if state["pages"]:
+            return state["pages"].pop(0)
         return state["response"]
 
     monkeypatch.setattr(nifc_wildfires.requests, "get", get)
@@ -59,7 +61,9 @@ def test_request_asks_for_everything_as_geojson_with_a_timeout(fake_get):
     calls, _ = fake_get
     nifc_wildfires.get_incidents()
     _, kwargs = calls[0]
-    assert kwargs["params"] == {"outFields": "*", "where": "1=1", "f": "geojson"}
+    assert kwargs["params"]["outFields"] == "*"
+    assert kwargs["params"]["where"] == "1=1"
+    assert kwargs["params"]["f"] == "geojson"
     assert kwargs["timeout"] == nifc_wildfires.TIMEOUT
 
 
@@ -99,6 +103,80 @@ def test_unexpected_reply_raises(fake_get, data):
     state["response"] = FakeResponse(data=data)
     with pytest.raises(nifc_wildfires.NIFCError):
         nifc_wildfires.get_incidents()
+
+
+def page(count, more=None, top_level=False):
+    """Build a fake reply with some features and an optional paging flag."""
+    data = {"type": "FeatureCollection", "features": [{"type": "Feature"}] * count}
+    if more is not None:
+        if top_level:
+            data["exceededTransferLimit"] = more
+        else:
+            data["properties"] = {"exceededTransferLimit": more}
+    return FakeResponse(data=data)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("top_level", [False, True])
+def test_every_page_is_downloaded(fake_get, top_level):
+    """Test that pages are followed until NIFC says there are no more."""
+    calls, state = fake_get
+    state["pages"] = [
+        page(2, more=True, top_level=top_level),
+        page(2, more=True, top_level=top_level),
+        page(1, more=False, top_level=top_level),
+    ]
+    data = nifc_wildfires.get_incidents()
+    assert len(data["features"]) == 5
+    assert data["type"] == "FeatureCollection"
+    assert [c[1]["params"]["resultOffset"] for c in calls] == [0, 2, 4]
+
+
+@pytest.mark.unit
+def test_paging_asks_for_a_stable_order_and_page_size(fake_get):
+    """Test that each page request sorts the same way and sets a page size."""
+    calls, _ = fake_get
+    nifc_wildfires.get_incidents()
+    params = calls[0][1]["params"]
+    assert params["orderByFields"] == "OBJECTID"
+    assert params["resultRecordCount"] == nifc_wildfires.PAGE_SIZE
+
+
+@pytest.mark.unit
+def test_empty_page_with_more_to_come_raises(fake_get):
+    """Test that paging that stalls is an error and not an endless loop."""
+    _, state = fake_get
+    state["pages"] = [page(1, more=True), page(0, more=True)]
+    with pytest.raises(nifc_wildfires.NIFCError, match="paging ended"):
+        nifc_wildfires.get_incidents()
+
+
+@pytest.mark.unit
+def test_too_many_pages_raises(fake_get, monkeypatch):
+    """Test that the page safety limit stops a runaway download."""
+    _, state = fake_get
+    monkeypatch.setattr(nifc_wildfires, "MAX_PAGES", 3)
+    state["response"] = page(1, more=True)
+    with pytest.raises(nifc_wildfires.NIFCError, match="3-page safety limit"):
+        nifc_wildfires.get_incidents()
+
+
+@pytest.mark.unit
+def test_invalid_paging_flag_raises(fake_get):
+    """Test that a paging flag that is not true or false is an error."""
+    _, state = fake_get
+    state["response"] = page(1, more="yes")
+    with pytest.raises(nifc_wildfires.NIFCError, match="paging flag"):
+        nifc_wildfires.get_incidents()
+
+
+@pytest.mark.integration
+def test_live_paging_returns_everything(monkeypatch):
+    """Test that tiny pages against the live service add up to the full count."""
+    whole = nifc_wildfires.get_incidents()
+    monkeypatch.setattr(nifc_wildfires, "PAGE_SIZE", 50)
+    paged = nifc_wildfires.get_incidents()
+    assert len(paged["features"]) == len(whole["features"])
 
 
 @pytest.mark.integration
