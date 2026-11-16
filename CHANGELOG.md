@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Add a `strict` setting to `get_active_perimeters` and `get_incidents`, and
+  `--strict/--no-strict` to the command line. It is on by default. Turn it off to
+  log data that is not in the expected shape and carry on instead of stopping.
+- Add `NIFCValidationError`, a kind of `NIFCError` raised when NIFC's data is
+  not in the expected shape. It lists each problem and where it was found, so
+  code that calls this package can handle it on its own.
 - Add typed objects for the settings: a `QueryOptions` object that is checked as
   soon as it is created, a `Layer` list of the NIFC layers, and `Fetcher` and
   `Reply` types that describe the `get` function. `get_active_perimeters` and

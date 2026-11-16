@@ -8,7 +8,14 @@ import requests
 from pydantic import ValidationError
 
 import nifc_wildfires
-from nifc_wildfires import Fetcher, Layer, QueryOptions
+from nifc_wildfires import (
+    Fetcher,
+    Layer,
+    NIFCError,
+    NIFCValidationError,
+    QueryOptions,
+    ValidationProblem,
+)
 
 FAKE_DATA = {"type": "FeatureCollection", "features": []}
 
@@ -544,3 +551,130 @@ def test_error_messages_do_not_echo_the_data(fake_get):
     with pytest.raises(nifc_wildfires.NIFCError) as error:
         nifc_wildfires.get_incidents()
     assert "xxxx" not in str(error.value)
+
+
+def reply_with(*features, more=None):
+    """Wrap features in a fake reply, optionally flagging that more pages wait."""
+    data = {"type": "FeatureCollection", "features": list(features)}
+    if more is not None:
+        data["properties"] = {"exceededTransferLimit": more}
+    return FakeResponse(data=data)
+
+
+NO_SHAPE = {"type": "Feature", "properties": {"OBJECTID": 500}}
+
+
+@pytest.mark.unit
+def test_validation_error_carries_the_problems(fake_get):
+    """Test that a shape failure is a NIFCValidationError listing what was wrong."""
+    _, state = fake_get
+    state["response"] = reply_with(feature(), NO_SHAPE)
+    with pytest.raises(NIFCValidationError) as caught:
+        nifc_wildfires.get_incidents()
+    error = caught.value
+    assert isinstance(error, NIFCError)
+    assert error.what == "reply"
+    assert error.problem_count == 1
+    assert error.problems == [
+        ValidationProblem(("features", 1, "geometry"), "Field required")
+    ]
+    assert "features.1.geometry" in str(error)
+
+
+@pytest.mark.unit
+def test_problems_are_capped_but_counted(fake_get, monkeypatch):
+    """Test that a reply full of problems keeps a short list and the full count."""
+    _, state = fake_get
+    monkeypatch.setattr(nifc_wildfires, "MAX_PROBLEMS", 5)
+    state["response"] = reply_with(*[dict(NO_SHAPE, id=i) for i in range(20)])
+    with pytest.raises(NIFCValidationError) as caught:
+        nifc_wildfires.get_incidents()
+    assert len(caught.value.problems) == 5
+    assert caught.value.problem_count == 20
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"error": {"code": 400}},
+        None,
+    ],
+)
+def test_other_failures_are_not_validation_errors(fake_get, data):
+    """Test that failed requests and NIFC errors can be told apart from shape errors."""
+    _, state = fake_get
+    state["response"] = (
+        FakeResponse(status_code=503) if data is None else FakeResponse(data=data)
+    )
+    with pytest.raises(NIFCError) as caught:
+        nifc_wildfires.get_incidents()
+    assert not isinstance(caught.value, NIFCValidationError)
+
+
+@pytest.mark.unit
+def test_not_strict_lets_bad_features_pass_and_logs_them(fake_get, caplog):
+    """Test that strict=False returns the data as sent and logs the problems."""
+    _, state = fake_get
+    good = feature()
+    state["response"] = reply_with(good, NO_SHAPE)
+    with caplog.at_level("WARNING", logger="nifc_wildfires"):
+        data = nifc_wildfires.get_incidents(strict=False)
+    assert data["features"] == [good, NO_SHAPE]
+    assert "Letting 1 problem(s) pass" in caplog.text
+
+
+@pytest.mark.unit
+def test_not_strict_is_quiet_when_nothing_is_wrong(fake_get, caplog):
+    """Test that strict=False logs nothing for good data."""
+    with caplog.at_level("WARNING", logger="nifc_wildfires"):
+        nifc_wildfires.get_incidents(strict=False)
+    assert caplog.text == ""
+
+
+@pytest.mark.unit
+def test_not_strict_still_follows_every_page(fake_get):
+    """Test that bad features do not stop paging when strict=False."""
+    calls, state = fake_get
+    state["pages"] = [
+        reply_with(NO_SHAPE, more=True),
+        reply_with(feature(), more=False),
+    ]
+    data = nifc_wildfires.get_incidents(strict=False)
+    assert len(data["features"]) == 2
+    assert [c[1]["params"]["resultOffset"] for c in calls] == [0, 1]
+
+
+@pytest.mark.unit
+def test_not_strict_still_notices_repeated_ids(fake_get):
+    """Test that a download still starts over on repeats when strict=False."""
+    calls, state = fake_get
+    twin = dict(NO_SHAPE)
+    state["pages"] = [
+        reply_with(twin, more=True),
+        reply_with(dict(twin), more=False),
+        reply_with(feature(), more=False),
+    ]
+    data = nifc_wildfires.get_incidents(strict=False)
+    assert len(data["features"]) == 1
+    assert [c[1]["params"]["resultOffset"] for c in calls] == [0, 1, 0]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("data", [{"type": "FeatureCollection"}, {"features": "nope"}])
+def test_not_strict_cannot_pass_a_reply_with_no_features(fake_get, data):
+    """Test that strict=False cannot read a reply that has no list of features."""
+    _, state = fake_get
+    state["response"] = FakeResponse(data=data)
+    with pytest.raises(NIFCValidationError):
+        nifc_wildfires.get_incidents(strict=False)
+
+
+@pytest.mark.unit
+def test_bad_layer_metadata_is_a_validation_error(fake_get):
+    """Test that an unusable last edit time raises the validation error."""
+    _, state = fake_get
+    state["response"] = FakeResponse(data={"editingInfo": {}})
+    with pytest.raises(NIFCValidationError) as caught:
+        nifc_wildfires.get_incidents_last_edited()
+    assert caught.value.what == "layer metadata"
