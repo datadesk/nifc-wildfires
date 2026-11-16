@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Add a `get` setting to every download function, so callers can make requests
+  with their own function.
 - Add `get_active_perimeters_last_edited` and `get_incidents_last_edited`,
   which report when NIFC last edited each layer so callers can skip a download
   when nothing has changed.
