@@ -14,7 +14,14 @@ from nifc_wildfires.client import (
     NIFCClient,
 )
 from nifc_wildfires.errors import NIFCError, NIFCValidationError, ValidationProblem
-from nifc_wildfires.schema import Fetcher, IncidentType, Layer, QueryOptions, Reply
+from nifc_wildfires.schema import (
+    Fetcher,
+    IncidentKind,
+    IncidentType,
+    Layer,
+    QueryOptions,
+    Reply,
+)
 
 __all__ = [
     "BASE_URL",
@@ -24,6 +31,7 @@ __all__ = [
     "PAGE_SIZE",
     "TIMEOUT",
     "Fetcher",
+    "IncidentKind",
     "IncidentType",
     "Layer",
     "NIFCClient",

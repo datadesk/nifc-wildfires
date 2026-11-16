@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from nifc_wildfires import IncidentType, Layer, NIFCClient, QueryOptions
+from nifc_wildfires import IncidentKind, IncidentType, Layer, NIFCClient, QueryOptions
 
 
 class Reply:
@@ -29,14 +29,65 @@ def asked_for(layer, options):
 
 
 @pytest.mark.unit
-def test_codes_and_names():
-    """Test that each kind of incident has its NIFC code."""
-    assert {t.name: t.value for t in IncidentType} == {
-        "WILDFIRE": "WF",
-        "PRESCRIBED_FIRE": "RX",
-        "COMPLEX": "CX",
+def test_codes_follow_the_nwcg_standard():
+    """Test that each category has its NWCG code, kind and name."""
+    expected = {
+        "DF": ("FI", "Debris / Product Fire"),
+        "NS": ("FI", "Non-Statistical / Other"),
+        "RX": ("FI", "Prescribed Fire"),
+        "SF": ("FI", "Structure Fire"),
+        "VF": ("FI", "Vehicle Fire"),
+        "WF": ("FI", "Wildfire"),
+        "BR": ("FM", "Emergency Stabilization"),
+        "FA": ("FM", "False Alarm"),
+        "FR": ("FM", "Fire Rehabilitation"),
+        "CX": ("FM", "Incident Complex"),
+        "SU": ("FM", "Incident / Event Support"),
+        "OR": ("FM", "Out of Area Response"),
+        "PP": ("FM", "Preparedness / Prepositioning"),
     }
+    assert {t.value: (t.kind.value, t.label) for t in IncidentType} == expected
     assert IncidentType("RX") is IncidentType.PRESCRIBED_FIRE
+
+
+@pytest.mark.unit
+def test_kinds():
+    """Test the two fire kinds and their names."""
+    assert {k.value: k.label for k in IncidentKind} == {
+        "FI": "Fire",
+        "FM": "Fire Management Action",
+    }
+
+
+@pytest.mark.unit
+def test_complexes_are_fire_management_not_fire():
+    """Test that the standard puts complexes in the fire management kind."""
+    assert IncidentType.COMPLEX.kind is IncidentKind.FIRE_MANAGEMENT_ACTION
+    assert IncidentType.WILDFIRE.kind is IncidentKind.FIRE
+
+
+@pytest.mark.integration
+def test_live_codes_are_all_defined():
+    """Test that every category NIFC uses today is one the standard defines."""
+    for layer in Layer:
+        field = layer.incident_type_field
+        data = NIFCClient().download(
+            layer, QueryOptions(out_fields=f"OBJECTID,{field}")
+        )
+        seen = {f["properties"][field] for f in data["features"]}
+        assert seen <= {t.value for t in IncidentType}, seen
+
+
+@pytest.mark.integration
+def test_live_kind_matches_category():
+    """Test that NIFC's own kind for each record matches the standard's."""
+    data = NIFCClient().get_incidents(
+        QueryOptions(out_fields="OBJECTID,IncidentTypeCategory,IncidentTypeKind")
+    )
+    for f in data["features"]:
+        props = f["properties"]
+        category = IncidentType(props["IncidentTypeCategory"])
+        assert category.kind.value == props["IncidentTypeKind"]
 
 
 @pytest.mark.unit

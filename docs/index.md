@@ -132,15 +132,42 @@ say otherwise `incidents` returns both. When this was written, in November 2026,
 about two thirds of the incident points were prescribed burns, not wildfires.
 Check this before counting or mapping them.
 
-NIFC labels each record with an incident type:
+### The codes
 
-| Code | In Python | Meaning |
+NIFC's layers do not define their codes. They come from the
+[NWCG Event Kind and Event Category standard](https://wildfireweb-prod-media-bucket.s3.us-gov-west-1.amazonaws.com/s3fs-public/2024-03/Event%20Kind%20and%20Event%20Category.pdf)
+(dated December 14, 2021). Every record has a **kind** (`IncidentTypeKind`) and a
+**category** (`IncidentTypeCategory`) within it. The standard covers all kinds of
+event, including hazards, accidents and training. These are the two kinds that
+are fire, and their categories.
+
+| Kind | In Python | Meaning |
 | --- | --- | --- |
-| `WF` | `IncidentType.WILDFIRE` | Wildfire. |
-| `RX` | `IncidentType.PRESCRIBED_FIRE` | Prescribed fire, set on purpose. |
-| `CX` | `IncidentType.COMPLEX` | Understood to be a complex, several fires managed together. NIFC's layer metadata does not define the codes, so confirm this before relying on it. |
+| `FI` | `IncidentKind.FIRE` | Fire. |
+| `FM` | `IncidentKind.FIRE_MANAGEMENT_ACTION` | Fire management action. |
 
-To leave prescribed burns out:
+| Code | In Python | Name in the standard | Kind | In the data? |
+| --- | --- | --- | --- | --- |
+| `WF` | `IncidentType.WILDFIRE` | Wildfire | `FI` | Yes |
+| `RX` | `IncidentType.PRESCRIBED_FIRE` | Prescribed Fire | `FI` | Yes |
+| `CX` | `IncidentType.COMPLEX` | Incident Complex | `FM` | Yes |
+| `DF` | `IncidentType.DEBRIS_FIRE` | Debris / Product Fire | `FI` | No |
+| `NS` | `IncidentType.NON_STATISTICAL` | Non-Statistical / Other | `FI` | No |
+| `SF` | `IncidentType.STRUCTURE_FIRE` | Structure Fire | `FI` | No |
+| `VF` | `IncidentType.VEHICLE_FIRE` | Vehicle Fire | `FI` | No |
+| `BR` | `IncidentType.EMERGENCY_STABILIZATION` | Emergency Stabilization | `FM` | No |
+| `FA` | `IncidentType.FALSE_ALARM` | False Alarm | `FM` | No |
+| `FR` | `IncidentType.FIRE_REHABILITATION` | Fire Rehabilitation | `FM` | No |
+| `SU` | `IncidentType.INCIDENT_SUPPORT` | Incident / Event Support | `FM` | No |
+| `OR` | `IncidentType.OUT_OF_AREA_RESPONSE` | Out of Area Response | `FM` | No |
+| `PP` | `IncidentType.PREPAREDNESS` | Preparedness / Prepositioning | `FM` | No |
+
+The last column was checked against the live service in November 2026. NIFC's own
+description of the perimeters layer says it holds wildfires and prescribed fires
+only, but the data also holds complexes, so do not rely on the description.
+`IncidentType.kind` and `IncidentType.label` give a category's kind and its name.
+
+### Leaving prescribed burns out
 
 ```python
 from nifc_wildfires import IncidentType, QueryOptions
@@ -177,6 +204,70 @@ perimeters and `IncidentTypeCategory` for incidents. These options use the right
 one for each layer. If you write your own `where` filter instead, you have to
 use the right spelling yourself. Your filter and these options can be combined,
 and both apply.
+
+### Complexes
+
+A complex (`CX`) is two or more wildfires in the same general area that are
+managed together under one commander. The wildfires inside it stay in the data as
+`WF` records, marked `IsCpxChild = 1` and carrying the complex's name in
+`CpxName` (`attr_IsCpxChild` and `attr_CpxName` in the perimeters). It is the only
+field whose metadata lists coded values: `0` for no and `1` for yes.
+
+- **In the incident points,** both the complex and its member fires are present.
+  Adding up their sizes may count the same acres twice. Check the totals before
+  you rely on them.
+- **In the perimeters,** the complexes seen so far had no outline of their own,
+  only their member fires did. The two `CX` perimeters, Esau Canyon and Grand
+  Park 2, are small fires that NIFC labeled as complexes. They are not members of
+  another complex (`IsCpxChild = 0`). A wildfires-only filter leaves them out.
+
+## Field reference
+
+NIFC's service describes none of its fields: across the 97 incident fields and 119
+perimeter fields there is no description and no list of allowed values. The
+layer's [published metadata](https://www.arcgis.com/sharing/rest/content/items/d1c32af3212341869b3c810f1a215824/info/metadata/metadata.xml?format=default&output=html)
+has a sentence about most fields, but no value lists. Because of that, only the
+incident kind and category above are backed by a published standard.
+
+The values below are only what was **seen on November 16, 2026**. They are not
+complete lists, NIFC can add to them at any time, and a value may also be empty.
+None of them are checked or enumerated by this package, so a filter on one of them
+is your own `where` filter.
+
+| Field | Values seen |
+| --- | --- |
+| `GACC` | `AICC`, `EACC`, `GBCC`, `NRCC`, `NWCC`, `ONCC`, `OSCC`, `RMCC`, `SACC`, `SWCC` |
+| `FireCause` | `Human`, `Natural`, `Undetermined`. NIFC's metadata says "human, natural or unknown". |
+| `FireBehaviorGeneral` | `Minimal`, `Moderate`, `Active`, `Extreme` |
+| `ICS209ReportStatus` | `I`, `U`, `F`. The metadata mentions "initial, update, or final". |
+| `IncidentComplexityLevel` | `Type 1 Incident` to `Type 5 Incident` |
+| `WFDSSDecisionStatus` | `Approved Decision`, `Pending Decision`, `No Decision` |
+| `POOLandownerKind` | `Federal`, `Local`, `Other`, `Private`, `Soverei`, `State` |
+| `poly_MapMethod` (perimeters) | `GPS-Driven`, `GPS-Flight`, `GPS-Walked`, `IR Image Interpretation`, `Image Interpretation`, `Mixed Methods`, `Phone/Tablet`, `Remote Sensing Derived`, `Auto-generated for InFORM` |
+
+**Cut-off values.** NIFC stores some text in fields that are too short, so values
+are cut off: `Soverei` is "Sovereign", and `OrganizationalAssessment` has
+`Complex Incident Manageme`. Filter on the cut-off spelling, not the full word.
+
+**Matching fields between the layers.** The perimeters layer repeats the incident
+fields with an `attr_` in front, so `FireCause` becomes `attr_FireCause`. That is
+true of 83 of the 97 incident fields. The other fields are renamed or missing:
+
+| Incident points | Perimeters |
+| --- | --- |
+| `FinalFireReportApprovedByTitle`, `...ByUnit`, `...Date` | `attr_FFReportApprovedByTitle`, `...ByUnit`, `...Date` |
+| `FireStrategyFullSuppPercent`, `FireStrategyPointZonePercent` | `attr_FireStrategyFullSuppPrcnt`, `attr_FireStrategyPointZonePrcnt` |
+| `ICS209ReportForTimePeriodFrom`, `...To` | `attr_ICS209RptForTimePeriodFrom`, `...To` |
+| `IncidentManagementOrganization` | `attr_IncidentManagementOrg` |
+| `POOJurisdictionalUnitParentUnit` | `attr_POOJurisdictUnitParentUnit` |
+| `POOLegalDescPrincipalMeridian` | `attr_POOLegalDescPrincipalMerid` |
+| `PercentPerimeterToBeContained` | `attr_PercentPerimToBeContained` |
+| `StrategicDecisionPublishDate` | `attr_StratDecisionPublishDate` |
+| `OBJECTID`, `GlobalID` | No `attr_` copy. Each layer numbers its own rows, so these do not link an incident to its perimeter. |
+
+The perimeters also have `poly_` fields about the outline itself, and three
+`attr_` fields with no incident match: `attr_CalculatedAcres`, `attr_FORID` and
+`attr_Source`.
 
 ## Using a client
 
