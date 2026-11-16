@@ -9,11 +9,16 @@ import requests
 from pydantic import ValidationError
 
 from nifc_wildfires import (
+    IncidentType,
     Layer,
     NIFCClient,
     NIFCError,
     NIFCValidationError,
     QueryOptions,
+)
+
+INCIDENT_TYPE_CHOICE = click.Choice(
+    [t.value for t in IncidentType], case_sensitive=False
 )
 
 
@@ -70,12 +75,20 @@ def download_options(function: Callable[..., None]) -> Callable[..., None]:
 
     Returns:
         The same function with the ``--where``, ``--out-fields``,
-        ``--geometry-precision`` and ``--strict/--no-strict`` options attached.
+        ``--geometry-precision``, ``--incident-type``,
+        ``--exclude-incident-type`` and ``--strict/--no-strict`` options attached.
 
     Examples:
         >>> @click.command()
         ... @download_options
-        ... def example(where, out_fields, geometry_precision, strict): ...
+        ... def example(
+        ...     where,
+        ...     out_fields,
+        ...     geometry_precision,
+        ...     incident_type,
+        ...     exclude_incident_type,
+        ...     strict,
+        ... ): ...
     """
     for option in reversed(
         [
@@ -86,6 +99,21 @@ def download_options(function: Callable[..., None]) -> Callable[..., None]:
                 type=int,
                 default=None,
                 help="Decimal places to keep in coordinates.",
+            ),
+            click.option(
+                "--incident-type",
+                type=INCIDENT_TYPE_CHOICE,
+                metavar="[WF|RX|CX]",
+                multiple=True,
+                help="Keep only this kind of incident. Repeat to keep several. "
+                "WF is wildfire, RX is prescribed fire, CX is understood to be a complex.",
+            ),
+            click.option(
+                "--exclude-incident-type",
+                type=INCIDENT_TYPE_CHOICE,
+                metavar="[WF|RX|CX]",
+                multiple=True,
+                help="Leave out this kind of incident. Repeat to leave out several.",
             ),
             click.option(
                 "--strict/--no-strict",
@@ -100,7 +128,11 @@ def download_options(function: Callable[..., None]) -> Callable[..., None]:
 
 
 def build_options(
-    where: str, out_fields: str, geometry_precision: int | None
+    where: str,
+    out_fields: str,
+    geometry_precision: int | None,
+    incident_type: tuple[str, ...] = (),
+    exclude_incident_type: tuple[str, ...] = (),
 ) -> QueryOptions:
     """Turn the command-line options into a checked options object.
 
@@ -108,25 +140,37 @@ def build_options(
         where: A SQL-style filter that picks which features to return.
         out_fields: The fields to return, as a comma-separated string.
         geometry_precision: The decimal places to keep in coordinates.
+        incident_type: Incident type codes to keep, or none to keep every type.
+        exclude_incident_type: Incident type codes to leave out.
 
     Returns:
         The options object.
 
     Raises:
-        click.UsageError: If an option is not valid, such as an empty filter or a
-            negative precision.
+        click.UsageError: If an option is not valid, such as an empty filter, a
+            negative precision, or both keeping and excluding incident types.
 
     Examples:
         >>> build_options("1=1", "*", 5).geometry_precision
         5
+        >>> build_options("1=1", "*", None, exclude_incident_type=("rx",))
+        ... .exclude_incident_types == {IncidentType.PRESCRIBED_FIRE}
+        True
     """
     try:
         return QueryOptions(
-            where=where, out_fields=out_fields, geometry_precision=geometry_precision
+            where=where,
+            out_fields=out_fields,
+            geometry_precision=geometry_precision,
+            incident_types=(
+                frozenset(t.upper() for t in incident_type) if incident_type else None
+            ),
+            exclude_incident_types=frozenset(t.upper() for t in exclude_incident_type),
         )
     except ValidationError as error:
         problems = "; ".join(
-            f"{e['loc'][0]}: {e['msg']}" for e in error.errors() if e["loc"]
+            f"{e['loc'][0]}: {e['msg']}" if e["loc"] else e["msg"]
+            for e in error.errors()
         )
         raise click.UsageError(problems) from error
 
@@ -216,6 +260,8 @@ def active_perimeters(
     where: str,
     out_fields: str,
     geometry_precision: int | None,
+    incident_type: tuple[str, ...],
+    exclude_incident_type: tuple[str, ...],
     strict: bool,
     timeout: float | None,
     verbose: bool,
@@ -226,38 +272,52 @@ def active_perimeters(
         where: A SQL-style filter that picks which features to return.
         out_fields: The fields to return, as a comma-separated string.
         geometry_precision: The decimal places to keep in coordinates.
+        incident_type: Incident type codes to keep, or none to keep every type.
+        exclude_incident_type: Incident type codes to leave out.
         strict: Whether to stop on data that is not in the expected shape.
         timeout: The seconds to wait for each request, or None for the default.
         verbose: Whether to list every problem when a download fails.
 
     Examples:
         $ nifcwildfires active-perimeters
-        $ nifcwildfires active-perimeters --where "attr_IncidentTypeCategory='WF'"
+        $ nifcwildfires active-perimeters --incident-type WF
         $ nifcwildfires active-perimeters --timeout 120 --no-strict
     """
-    options = build_options(where, out_fields, geometry_precision)
+    options = build_options(
+        where, out_fields, geometry_precision, incident_type, exclude_incident_type
+    )
     with clean_errors(verbose):
         data = build_client(strict, timeout).get_active_perimeters(options)
     click.echo(json.dumps(data))
 
 
-@cmd.command(help="All YTD fire incident points from NIFC situation reports")
+@cmd.command(
+    help="All YTD fire incident points from NIFC situation reports, "
+    "prescribed burns included"
+)
 @download_options
 @common_options
 def incidents(
     where: str,
     out_fields: str,
     geometry_precision: int | None,
+    incident_type: tuple[str, ...],
+    exclude_incident_type: tuple[str, ...],
     strict: bool,
     timeout: float | None,
     verbose: bool,
 ) -> None:
     """Print all year-to-date fire incident points as GeoJSON.
 
+    This includes prescribed burns (type RX), fires lit on purpose, which can be
+    most of the points. Leave them out with ``--exclude-incident-type RX``.
+
     Args:
         where: A SQL-style filter that picks which features to return.
         out_fields: The fields to return, as a comma-separated string.
         geometry_precision: The decimal places to keep in coordinates.
+        incident_type: Incident type codes to keep, or none to keep every type.
+        exclude_incident_type: Incident type codes to leave out.
         strict: Whether to stop on data that is not in the expected shape.
         timeout: The seconds to wait for each request, or None for the default.
         verbose: Whether to list every problem when a download fails.
@@ -265,8 +325,11 @@ def incidents(
     Examples:
         $ nifcwildfires incidents
         $ nifcwildfires incidents --out-fields OBJECTID,IncidentName
+        $ nifcwildfires incidents --exclude-incident-type RX
     """
-    options = build_options(where, out_fields, geometry_precision)
+    options = build_options(
+        where, out_fields, geometry_precision, incident_type, exclude_incident_type
+    )
     with clean_errors(verbose):
         data = build_client(strict, timeout).get_incidents(options)
     click.echo(json.dumps(data))

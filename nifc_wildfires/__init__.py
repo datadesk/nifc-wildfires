@@ -14,7 +14,7 @@ from nifc_wildfires.client import (
     NIFCClient,
 )
 from nifc_wildfires.errors import NIFCError, NIFCValidationError, ValidationProblem
-from nifc_wildfires.schema import Fetcher, Layer, QueryOptions, Reply
+from nifc_wildfires.schema import Fetcher, IncidentType, Layer, QueryOptions, Reply
 
 __all__ = [
     "BASE_URL",
@@ -24,6 +24,7 @@ __all__ = [
     "PAGE_SIZE",
     "TIMEOUT",
     "Fetcher",
+    "IncidentType",
     "Layer",
     "NIFCClient",
     "NIFCError",
@@ -121,7 +122,10 @@ def get_incidents(
 ) -> dict[str, Any]:
     """Get year-to-date fire incident points from NIFC situation reports.
 
-    Includes active and inactive incidents. This is a shortcut for
+    Includes active and inactive incidents, and prescribed burns (type ``RX``),
+    which are fires lit on purpose and can be most of the points. Leave them out
+    with ``QueryOptions(exclude_incident_types={IncidentType.PRESCRIBED_FIRE})``.
+    This is a shortcut for
     ``NIFCClient(get=get, strict=strict)``. Make a client yourself to reuse
     settings across several downloads.
 
@@ -151,6 +155,9 @@ def get_incidents(
         'FeatureCollection'
         >>> names = get_incidents(QueryOptions(out_fields="OBJECTID,IncidentName"))
         >>> lenient = get_incidents(strict=False)
+        >>> wildfires = get_incidents(
+        ...     QueryOptions(exclude_incident_types={IncidentType.PRESCRIBED_FIRE})
+        ... )
     """
     return _client_for(get, strict).get_incidents(options)
 

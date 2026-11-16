@@ -45,6 +45,8 @@ Both download commands print valid JSON, and share these options.
 | `--where TEXT` | A SQL-style filter that picks which features to return. |
 | `--out-fields TEXT` | The fields to return, separated by commas. |
 | `--geometry-precision INTEGER` | The decimal places to keep in coordinates. |
+| `--incident-type [WF\|RX\|CX]` | Keep only this kind of incident. Repeat to keep several. |
+| `--exclude-incident-type [WF\|RX\|CX]` | Leave out this kind of incident. Repeat to leave out several. |
 | `--strict / --no-strict` | Stop on data that is not in the expected shape (the default), or log it and carry on. |
 | `--timeout FLOAT` | Seconds to wait for each request. The default is 60. |
 | `--verbose` | When a download fails, list every problem found. |
@@ -121,6 +123,60 @@ To carry on regardless, pass `strict=False`, or `--no-strict` on the command
 line. The problems are written to the `nifc_wildfires` logger as warnings and the
 data is returned exactly as NIFC sent it. A reply with no list of features at
 all cannot be read, so it still raises.
+
+## Wildfires and prescribed burns
+
+**The incident points include prescribed burns.** A prescribed burn is a fire lit
+on purpose, to manage land. NIFC reports them alongside wildfires, so unless you
+say otherwise `incidents` returns both. When this was written, in November 2026,
+about two thirds of the incident points were prescribed burns, not wildfires.
+Check this before counting or mapping them.
+
+NIFC labels each record with an incident type:
+
+| Code | In Python | Meaning |
+| --- | --- | --- |
+| `WF` | `IncidentType.WILDFIRE` | Wildfire. |
+| `RX` | `IncidentType.PRESCRIBED_FIRE` | Prescribed fire, set on purpose. |
+| `CX` | `IncidentType.COMPLEX` | Understood to be a complex, several fires managed together. NIFC's layer metadata does not define the codes, so confirm this before relying on it. |
+
+To leave prescribed burns out:
+
+```python
+from nifc_wildfires import IncidentType, QueryOptions
+
+options = QueryOptions(exclude_incident_types={IncidentType.PRESCRIBED_FIRE})
+data = nifc_wildfires.get_incidents(options)
+```
+
+To keep wildfires only, name them instead. This also drops anything with another
+code, such as `CX`.
+
+```python
+options = QueryOptions(incident_types={IncidentType.WILDFIRE})
+```
+
+Use one or the other, not both. Excluding keeps records that have no incident
+type at all, and keeping only a type drops them. Plain codes such as `"RX"` work
+too, and an unknown code is rejected as soon as the options are created.
+
+The same on the command line:
+
+```sh
+nifcwildfires incidents --exclude-incident-type RX
+nifcwildfires incidents --incident-type WF
+nifcwildfires active-perimeters --incident-type WF
+```
+
+The perimeters carry the same codes. At the last check none of the current
+perimeters were prescribed burns, but that can change, so apply the same filter
+if you need wildfires only.
+
+The two layers spell the field differently, `attr_IncidentTypeCategory` for
+perimeters and `IncidentTypeCategory` for incidents. These options use the right
+one for each layer. If you write your own `where` filter instead, you have to
+use the right spelling yourself. Your filter and these options can be combined,
+and both apply.
 
 ## Using a client
 

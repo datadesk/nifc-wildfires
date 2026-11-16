@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Add `IncidentType`, a typed list of NIFC's incident type codes (wildfire,
+  prescribed fire, complex), and `incident_types` and `exclude_incident_types`
+  settings on `QueryOptions` that build the right filter for each layer. The
+  command line gets `--incident-type` and `--exclude-incident-type`.
+- Document that the incident points include prescribed burns, which can be most
+  of them, and how to leave them out.
 - Add a `last-edited` command that prints when NIFC last edited a layer, plus
   `--timeout` and `--verbose` options on every command.
 - Add `NIFCClient`, a class that holds the settings for downloading (the fetch
