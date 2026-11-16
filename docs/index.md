@@ -190,6 +190,11 @@ says:
 This package's MIT license covers its code, not the data. Check NIFC's terms before
 you republish the data, and credit NIFC and its partners.
 
+## About this package
+
+AI tools assisted in writing this package's code, tests and documentation. A person
+directed and reviewed the work.
+
 ## Wildfires and prescribed burns
 
 **The incident points include prescribed burns.** A prescribed burn is a fire lit
