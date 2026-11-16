@@ -1,0 +1,138 @@
+name: Continuous deployment
+
+permissions:
+  contents: read
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check project
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.10.7"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install Python dependencies
+        run: make install-dev
+
+      - name: Run static checks
+        run: make check
+
+      - name: Prune uv cache
+        run: uv cache prune --ci
+
+  test-python:
+    name: Test Python code
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - id: install-uv
+        name: Install uv
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.10.7"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - id: install-python
+        name: Install Python
+        run: uv python install ${{ matrix.python }}
+
+      - id: install-python-dependencies
+        name: Install Python dependencies
+        run: make install-test UV_PYTHON=${{ matrix.python }}
+
+      - id: tests
+        name: Run tests
+        run: make test UV_PYTHON=${{ matrix.python }}
+
+      - name: Verify package distribution
+        if: matrix.python == '3.13' && vars.PACKAGE_IMPORT_NAME != ''
+        env:
+          PACKAGE_IMPORT_NAME: ${{ vars.PACKAGE_IMPORT_NAME }}
+        run: make package-verify PACKAGE="$PACKAGE_IMPORT_NAME"
+
+      - name: Prune uv cache
+        run: uv cache prune --ci
+
+  build:
+    name: Build release candidate
+    runs-on: ubuntu-latest
+    needs: [check, test-python]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - id: install-uv
+        name: Install uv
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.10.7"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - id: build
+        name: Build releases
+        run: make build
+
+      - name: Prune uv cache
+        run: uv cache prune --ci
+
+      - id: save
+        name: Save artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-candidate
+          path: ./dist
+          if-no-files-found: error
+
+  release:
+    name: PyPI release
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: >-
+      github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags') &&
+      vars.PACKAGE_IMPORT_NAME != ''
+    permissions:
+      id-token: write
+    steps:
+      - id: fetch
+        name: Fetch artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: release-candidate
+          path: ./dist
+
+      - id: publish
+        name: Publish release
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+          verify-metadata: false

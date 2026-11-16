@@ -1,43 +1,54 @@
-"""Configure Sphinx configuration."""
-import os
-import sys
-from datetime import datetime
+"""Configuration file for the Sphinx documentation builder."""
 
-# Insert the parent directory into the path
-sys.path.insert(0, os.path.abspath(".."))
+from datetime import UTC, datetime
+from importlib.metadata import metadata
+from importlib.metadata import version as distribution_version
+
+distribution = metadata("nifc-wildfires")
+project = distribution["Name"]
+author = distribution["Author"] or distribution["Author-email"]
+version = distribution_version(project)
+release = version
+year = datetime.now(UTC).year
+copyright = f"{year}, {author}"
+
+language = "en"
+templates_path = ["_templates"]
+html_static_path = []
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+pygments_style = "sphinx"
 
 extensions = [
+    "palewire",
     "myst_parser",
-]
-templates_path = ["_templates"]
-source_suffix = ".rst"
-master_doc = "index"
-
-project = "nifc-wildfires"
-year = datetime.now().year
-copyright = f"{year} Ben Welsh"
-
-exclude_patterns = ["_build"]
-
-html_theme = "alabaster"
-html_sidebars = {
-    "**": [
-        # "about.html",
-        # "navigation.html",
-        "relations.html",
-        "searchbox.html",
-        "donate.html",
-    ]
-}
-html_theme_options = {
-    "canonical_url": f"https://palewi.re/docs/{project}/",
-    "show_powered_by": False,
-    "show_relbar_bottom": True,
-}
-
-html_static_path = ["_static"]
-html_css_files = [
-    "css/custom.css",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.napoleon",
+    "sphinxcontrib.mermaid",
+    "sphinx_copybutton",
 ]
 
-pygments_style = "sphinx"
+autodoc_member_order = "bysource"
+autodoc_typehints = "description"
+autodoc_default_options = {
+    "members": True,
+    "member-order": "bysource",
+    "special-members": "__init__",
+    "undoc-members": True,
+    "show-inheritance": True,
+}
+autosummary_generate = True
+
+nitpicky = True
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+}
+
+linkcheck_timeout = 10
+linkcheck_retries = 2
+
+html_theme = "palewire"
+html_baseurl = "https://palewi.re/docs/nifc-wildfires/"
+palewire_layout = "wide"
+palewire_navigation = "sidebar"

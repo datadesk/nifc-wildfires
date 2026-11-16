@@ -1,3 +1,7 @@
+# AI stuff
+.claude
+.goals
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -71,9 +75,8 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
-
-# pyenv
-.python-version
+.jupyter/
+.jupyter_ystore.db
 
 # celery beat schedule file
 celerybeat-schedule
@@ -83,6 +86,7 @@ celerybeat-schedule
 
 # Environments
 .env
+.env.worktree
 .venv
 env/
 venv/
@@ -103,4 +107,8 @@ venv.bak/
 # mypy
 .mypy_cache/
 
-.DS_Store
+# ruff
+.ruff_cache/
+
+# pip and uv
+./build/
