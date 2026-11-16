@@ -282,3 +282,49 @@ def test_live_last_edited():
         nifc_wildfires.get_incidents_last_edited,
     ):
         assert function().tzinfo is not None
+
+
+@pytest.mark.unit
+def test_custom_fetcher_is_used_for_every_request(fake_get):
+    """Test that a supplied fetch function replaces the default web request."""
+    default_calls, _ = fake_get
+    mine = []
+
+    def get(url, **kwargs):
+        mine.append((url, kwargs))
+        return FakeResponse(data={"editingInfo": {"lastEditDate": 0}})
+
+    nifc_wildfires.get_incidents_last_edited(get=get)
+    nifc_wildfires.get_active_perimeters_last_edited(get=get)
+    assert len(mine) == 2
+    assert mine[0][1]["timeout"] == nifc_wildfires.TIMEOUT
+    assert default_calls == []
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("function", ["get_active_perimeters", "get_incidents"])
+def test_custom_fetcher_downloads_every_page(fake_get, function):
+    """Test that a supplied fetch function is used on every page."""
+    default_calls, _ = fake_get
+    pages = [page(1, more=True), page(1, more=False)]
+    mine = []
+
+    def get(url, **kwargs):
+        mine.append(kwargs["params"]["resultOffset"])
+        return pages.pop(0)
+
+    data = getattr(nifc_wildfires, function)(get=get)
+    assert len(data["features"]) == 2
+    assert mine == [0, 1]
+    assert default_calls == []
+
+
+@pytest.mark.unit
+def test_custom_fetcher_errors_are_checked_too(fake_get):
+    """Test that replies from a supplied fetch function get the same checks."""
+
+    def get(url, **kwargs):
+        return FakeResponse(data={"error": {"code": 500}})
+
+    with pytest.raises(nifc_wildfires.NIFCError, match="API error"):
+        nifc_wildfires.get_incidents(get=get)
