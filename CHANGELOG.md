@@ -15,6 +15,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Print valid JSON from the `active-perimeters` and `incidents` commands. They
+  previously printed a Python dictionary with single quotes, which JSON tools
+  could not read.
+
 ### Removed
 
 - Remove the Pipfile in favor of `pyproject.toml` and `uv.lock`.
