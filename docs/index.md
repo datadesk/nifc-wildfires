@@ -50,10 +50,7 @@ data = nifc_wildfires.get_incidents()
 ## API reference
 
 ```{eval-rst}
-.. autosummary::
-   :toctree: _autosummary
-
-   nifc_wildfires
+.. automodule:: nifc_wildfires
 ```
 
 ## Contributing
