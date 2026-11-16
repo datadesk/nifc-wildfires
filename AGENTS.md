@@ -1,0 +1,155 @@
+# Agent Guide
+
+This repository publishes `nifc-wildfires`, a small Python library and
+command-line tool that downloads wildfire perimeters and incident points from
+the National Interagency Fire Center (NIFC) as GeoJSON. It also runs a daily
+scrape that saves the latest perimeters in `data/`.
+
+## Repository Structure
+
+- `nifc_wildfires/`: The library (`__init__.py`) and the Click command line (`cli.py`).
+- `tests/`: Tests. The NIFC tests call the live service and are marked `integration`.
+- `data/`: Output of the daily scrape. Never hand-edit these files.
+- `docs/`: Sphinx documentation source.
+- `.github/workflows/`: Continuous integration, documentation, release and scrape workflows.
+- `pyproject.toml`: Package metadata and tool configuration.
+- `Makefile`: Common development and verification commands.
+
+The `scrape.yml` workflow runs `nifcwildfires active-perimeters` every day and
+commits the result. Keep that command name and its output format stable.
+
+Keep only publishable, user-facing optional features in
+`[project.optional-dependencies]`. Development, test, documentation, and
+notebook tools belong in `[dependency-groups]`.
+
+## Documentation
+
+Document the package's public behavior in the Sphinx source under `docs/`.
+Update it with every user-facing API or behavior change, and build it with
+`make docs-check`. The documentation workflow builds the site on pushes and
+pull requests, checks links weekly, and deploys only its reviewed build
+artifact. To publish, protect the `docs-production` environment, configure an
+AWS OIDC role with `DOCS_AWS_ROLE_ARN` and `DOCS_AWS_REGION`, and set the
+`DOCS_DEPLOY_ENABLED` repository variable to `true`.
+
+## Development Workflow
+
+Install dependencies with:
+
+```sh
+make bootstrap
+```
+
+The bootstrap uses Git metadata to identify the primary checkout. In a linked
+worktree, it can share the primary checkout's ignored `.env` and creates an
+ignored `.env.worktree` with a stable `WORKTREE_ID`. Applications must
+explicitly load dotenv files; when they do, `.env.worktree` should load after
+`.env`.
+
+Use these commands while making changes:
+
+```sh
+make check   # Fast, non-mutating lint, format, and type checks
+make verify  # Full local CI suite: checks, tests, build, and docs
+make test-serial  # Debug tests without parallel workers
+make test-parallel  # Use for a large, independent test suite
+```
+
+Use `make fix` or `make format` only when changes to source files are
+intended. `make hooks` may also modify files.
+
+## Worktrees and Parallel Agents
+
+- Edit only the current checkout. Never modify the primary checkout or sibling
+  worktrees.
+- Avoid broad clean, reset, or delete operations. Do not stop services that may
+  be shared with another checkout or agent.
+- Coordinate ownership of conflict-prone files such as lockfiles, schemas,
+  migrations, snapshots, and generated artifacts.
+- Serialize or stack changes that update state which cannot be merged safely.
+- Never hand-edit files declared as generated; use their generator.
+- `pytest-xdist` runs tests in parallel, but it does not isolate external
+  resources across worktrees. Give each worktree separate ports, databases,
+  caches, containers, and similar resources when tests use them.
+
+Verify the wheel can be installed and imported:
+
+```sh
+make package-check PACKAGE=nifc_wildfires
+make coverage PACKAGE=nifc_wildfires
+```
+
+## Changelog
+
+For user-facing behavior, compatibility, or security changes, add a concise
+entry under the appropriate `Unreleased` category in `CHANGELOG.md`. Do not
+add entries for internal-only changes. Maintainers move entries into versioned
+release sections.
+
+## Releases
+
+Follow `RELEASING.md` for the full checklist. The routine order is: merge the
+approved release PR, confirm the exact version tag resolves to its merge
+commit, obtain explicit approval for the tag-triggered package publication,
+then create a public GitHub Release from that existing tag with concise
+changelog-based notes. Verify that the release is neither a draft nor a
+prerelease and that its tag still resolves to the expected commit. Agents may
+prepare release notes and validate a release, but must not create tags,
+releases, documentation deployments, or package publications without explicit
+human approval.
+
+## Change Guidelines
+
+- Keep production code, tests, package configuration, and documentation aligned.
+- Add tests for new library behavior under `tests/`.
+- Use the configured Ruff and ty checks; do not introduce duplicate tooling
+  without a project need.
+- Copy `.env.example` to `.env` or use `make bootstrap` in a linked worktree.
+  Do not commit generated build output, virtual environments, `.env` files,
+  `.env.worktree`, or credentials.
+
+## Working on Notebooks with an Assistant
+
+Notebooks live in `notebooks/`. An assistant can read, edit, and run cells in
+an open JupyterLab notebook while the person watches the changes appear in
+their browser tab. This relies on `jupyter-collaboration`, which is in the
+`notebooks` dependency group. Each notebook is paired with a `.py` twin by
+Jupytext (see `notebooks/jupytext.toml`) so reviewers get a readable diff.
+
+Set this up once per person. The token is a secret: never commit it, and never
+launch JupyterLab with an empty token.
+
+```sh
+make notebooks   # prints a generated JUPYTER_TOKEN and launches JupyterLab
+claude mcp add jupyter -e JUPYTER_URL=http://localhost:8888 \
+  -e JUPYTER_TOKEN="<token printed above>" -- uvx jupyter-mcp-server@latest
+```
+
+Working rules:
+
+- Open the notebook in a JupyterLab tab before the assistant edits it.
+- Edit a notebook only through the Jupyter tools. Never write to the `.ipynb`
+  file directly: an open notebook is a live document, and a direct write can
+  silently overwrite unsaved edits.
+- Read or review code in the `.py` twin. After editing a twin, run
+  `uv run --group notebooks jupytext --sync <notebook>.ipynb`.
+- Saving in JupyterLab (Ctrl+S) writes the file and the twin to disk and makes
+  the change visible to git.
+- Restarting JupyterLab ends the running session and loses variables. Run the
+  cells again from the top.
+- Altair charts render only in JupyterLab; GitHub's preview shows a text
+  placeholder. Also save a PNG of any chart that matters. Saving PNGs needs
+  `vl-convert-python` 1.9.0 or newer.
+
+### Keeping Notebooks Reproducible
+
+- Keep notebooks thin. Move stable logic into the package and import it, so it
+  can be tested and reused. Use notebooks for exploration, orchestration, and
+  explanation.
+- Before committing, restart the kernel and run all cells from the top to
+  confirm the notebook still works in order.
+- Seed random number generators so reruns give the same results.
+- Install packages through the `notebooks` dependency group and `uv.lock`, not
+  with `%pip install` or `!pip install` inside a cell.
+- Load data and credentials from paths and environment variables. Never
+  hard-code API keys or tokens in a cell, and never print them in output.

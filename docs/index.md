@@ -1,6 +1,3 @@
-```{include} _templates/nav.html
-```
-
 # nifc-wildfires
 
 Download wildfires data from the [National Interagency Fire Center](https://www.nifc.gov/)
@@ -13,7 +10,7 @@ Download wildfires data from the [National Interagency Fire Center](https://www.
 ## Installation
 
 ```sh
-pipenv install nifc-wildfires
+uv add nifc-wildfires
 ```
 
 ## Command-line usage
@@ -29,7 +26,7 @@ Options:
 
 Commands:
   active-perimeters  Perimeters of active fires
-  incidents      All fire incident points in 2021, from NIFC situation reports
+  incidents          All YTD fire incident points from NIFC situation reports
 ```
 
 From the shell:
@@ -50,26 +47,34 @@ data = nifc_wildfires.get_active_perimeters()
 data = nifc_wildfires.get_incidents()
 ```
 
+## API reference
+
+```{eval-rst}
+.. autosummary::
+   :toctree: _autosummary
+
+   nifc_wildfires
+```
+
 ## Contributing
 
 Install dependencies for development.
 
 ```sh
-pipenv install --dev
+make bootstrap
 ```
 
-Run tests.
+Run the fast checks and the tests.
 
 ```sh
-pipenv run python test.py
+make check
+make test
 ```
 
-## Developing the CLI
-
-The command-line interface is implemented using Click and setuptools. To install it locally for development inside your virtual environment, run the following installation command, as [prescribed by the Click documentation](https://click.palletsprojects.com/en/7.x/setuptools/#setuptools-integration).
+Run everything CI runs.
 
 ```sh
-pipenv run pip install --editable .
+make verify
 ```
 
 ## Links
