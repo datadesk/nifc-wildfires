@@ -8,6 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Add `IncidentKind` and widen `IncidentType` to the 13 fire and fire management
+  categories of the NWCG Event Kind and Event Category standard. Each category
+  has a `kind` and a `label`. `--incident-type` and `--exclude-incident-type`
+  accept all of them.
+- Add a field reference to the documentation: the incident codes with their
+  official names, how complexes appear, values seen in other fields (clearly
+  marked as not complete), cut-off values, and how perimeter fields match
+  incident fields.
 - Add `IncidentType`, a typed list of NIFC's incident type codes (wildfire,
   prescribed fire, complex), and `incident_types` and `exclude_incident_types`
   settings on `QueryOptions` that build the right filter for each layer. The

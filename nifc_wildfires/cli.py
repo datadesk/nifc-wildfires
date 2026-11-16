@@ -103,17 +103,19 @@ def download_options(function: Callable[..., None]) -> Callable[..., None]:
             click.option(
                 "--incident-type",
                 type=INCIDENT_TYPE_CHOICE,
-                metavar="[WF|RX|CX]",
+                metavar="CODE",
                 multiple=True,
-                help="Keep only this kind of incident. Repeat to keep several. "
-                "WF is wildfire, RX is prescribed fire, CX is understood to be a complex.",
+                help="Keep only this category of incident, by NWCG code: WF is "
+                "wildfire, RX is prescribed fire, CX is an incident complex. "
+                "Repeat to keep several.",
             ),
             click.option(
                 "--exclude-incident-type",
                 type=INCIDENT_TYPE_CHOICE,
-                metavar="[WF|RX|CX]",
+                metavar="CODE",
                 multiple=True,
-                help="Leave out this kind of incident. Repeat to leave out several.",
+                help="Leave out this category of incident, by NWCG code. "
+                "Repeat to leave out several.",
             ),
             click.option(
                 "--strict/--no-strict",

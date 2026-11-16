@@ -16,28 +16,119 @@ from pydantic import (
 )
 
 
+class IncidentKind(StrEnum):
+    """The broad kind of event, from the NWCG Event Kind standard.
+
+    The standard defines nine kinds. Only these two describe fire, and only these
+    two appear in NIFC's fire layers, so only these two are listed here.
+
+    Examples:
+        >>> IncidentKind("FM").label
+        'Fire Management Action'
+    """
+
+    FIRE = "FI"
+    FIRE_MANAGEMENT_ACTION = "FM"
+
+    @property
+    def label(self) -> str:
+        """The name the standard gives this kind.
+
+        Returns:
+            The kind's name.
+
+        Examples:
+            >>> IncidentKind.FIRE.label
+            'Fire'
+        """
+        return "Fire" if self is IncidentKind.FIRE else "Fire Management Action"
+
+
 class IncidentType(StrEnum):
-    """The kinds of incident NIFC labels its records with.
+    """The categories of incident NIFC labels its records with.
 
-    Prescribed burns are fires lit on purpose, to manage land. They are in the
-    incident points by default, and are most of them at the time of writing, so
-    leave them out with ``exclude_incident_types`` if you want wildfires only.
+    These are the fire and fire management categories of the NWCG Event Kind and
+    Event Category standard, dated December 14, 2021, which is what NIFC's
+    ``IncidentTypeCategory`` field holds. NIFC's own layers do not define the
+    codes. The standard also has categories for hazards, accidents, training and
+    other events that are not fire, which do not belong in these layers.
 
-    NIFC's layers do not define these codes. ``WF`` and ``RX`` are the standard
-    labels for wildfire and prescribed fire. ``CX`` is understood to be a
-    complex, which is several fires managed together, but NIFC's metadata does
-    not say so, so confirm before relying on it.
+    Prescribed burns (``RX``) are fires lit on purpose, to manage land. They are
+    in the incident points by default, and are most of them at the time of
+    writing, so leave them out with ``exclude_incident_types`` if you want
+    wildfires only. A complex (``CX``) is two or more wildfires in the same area
+    managed together, and it is in the fire management kind.
+
+    Not every category appears in NIFC's data. At the time of writing only
+    ``WF``, ``RX`` and ``CX`` do.
 
     Examples:
         >>> IncidentType.PRESCRIBED_FIRE.value
         'RX'
         >>> IncidentType("WF") is IncidentType.WILDFIRE
         True
+        >>> IncidentType.COMPLEX.kind is IncidentKind.FIRE_MANAGEMENT_ACTION
+        True
     """
 
-    WILDFIRE = "WF"
+    DEBRIS_FIRE = "DF"
+    NON_STATISTICAL = "NS"
     PRESCRIBED_FIRE = "RX"
+    STRUCTURE_FIRE = "SF"
+    VEHICLE_FIRE = "VF"
+    WILDFIRE = "WF"
+    EMERGENCY_STABILIZATION = "BR"
+    FALSE_ALARM = "FA"
+    FIRE_REHABILITATION = "FR"
     COMPLEX = "CX"
+    INCIDENT_SUPPORT = "SU"
+    OUT_OF_AREA_RESPONSE = "OR"
+    PREPAREDNESS = "PP"
+
+    @property
+    def kind(self) -> IncidentKind:
+        """The kind this category belongs to.
+
+        Returns:
+            ``FIRE`` or ``FIRE_MANAGEMENT_ACTION``.
+
+        Examples:
+            >>> IncidentType.WILDFIRE.kind
+            <IncidentKind.FIRE: 'FI'>
+        """
+        return _INCIDENT_TYPE_INFO[self][0]
+
+    @property
+    def label(self) -> str:
+        """The name the standard gives this category.
+
+        Returns:
+            The category's name.
+
+        Examples:
+            >>> IncidentType.COMPLEX.label
+            'Incident Complex'
+        """
+        return _INCIDENT_TYPE_INFO[self][1]
+
+
+_FIRE = IncidentKind.FIRE
+_MANAGEMENT = IncidentKind.FIRE_MANAGEMENT_ACTION
+_INCIDENT_TYPE_INFO: dict[IncidentType, tuple[IncidentKind, str]] = {
+    IncidentType.DEBRIS_FIRE: (_FIRE, "Debris / Product Fire"),
+    IncidentType.NON_STATISTICAL: (_FIRE, "Non-Statistical / Other"),
+    IncidentType.PRESCRIBED_FIRE: (_FIRE, "Prescribed Fire"),
+    IncidentType.STRUCTURE_FIRE: (_FIRE, "Structure Fire"),
+    IncidentType.VEHICLE_FIRE: (_FIRE, "Vehicle Fire"),
+    IncidentType.WILDFIRE: (_FIRE, "Wildfire"),
+    IncidentType.EMERGENCY_STABILIZATION: (_MANAGEMENT, "Emergency Stabilization"),
+    IncidentType.FALSE_ALARM: (_MANAGEMENT, "False Alarm"),
+    IncidentType.FIRE_REHABILITATION: (_MANAGEMENT, "Fire Rehabilitation"),
+    IncidentType.COMPLEX: (_MANAGEMENT, "Incident Complex"),
+    IncidentType.INCIDENT_SUPPORT: (_MANAGEMENT, "Incident / Event Support"),
+    IncidentType.OUT_OF_AREA_RESPONSE: (_MANAGEMENT, "Out of Area Response"),
+    IncidentType.PREPAREDNESS: (_MANAGEMENT, "Preparedness / Prepositioning"),
+}
 
 
 class Layer(StrEnum):
