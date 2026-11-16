@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Add `NIFCClient`, a class that holds the settings for downloading (the fetch
+  function, strictness, timeout, page size and the limits on pages and restarts)
+  and does the work in its methods. The existing functions keep their names,
+  settings and behavior and now use it behind the scenes.
 - Add a `strict` setting to `get_active_perimeters` and `get_incidents`, and
   `--strict/--no-strict` to the command line. It is on by default. Turn it off to
   log data that is not in the expected shape and carry on instead of stopping.
