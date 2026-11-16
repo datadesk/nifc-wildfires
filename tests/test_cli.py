@@ -1,5 +1,7 @@
 """Test the command-line interface."""
 
+import json
+
 import pytest
 from click.testing import CliRunner
 
@@ -18,18 +20,18 @@ def runner(monkeypatch):
 
 @pytest.mark.unit
 def test_active_perimeters(runner):
-    """Test that the active-perimeters command prints the perimeters data."""
+    """Test that the active-perimeters command prints the data as valid JSON."""
     result = runner.invoke(cli.cmd, ["active-perimeters"])
     assert result.exit_code == 0
-    assert "perimeters" in result.output
+    assert json.loads(result.output) == {"from": "perimeters"}
 
 
 @pytest.mark.unit
 def test_incidents(runner):
-    """Test that the incidents command prints the incidents data."""
+    """Test that the incidents command prints the data as valid JSON."""
     result = runner.invoke(cli.cmd, ["incidents"])
     assert result.exit_code == 0
-    assert "incidents" in result.output
+    assert json.loads(result.output) == {"from": "incidents"}
 
 
 @pytest.mark.unit
