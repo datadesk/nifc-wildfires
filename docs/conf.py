@@ -51,4 +51,4 @@ linkcheck_retries = 2
 html_theme = "palewire"
 html_baseurl = "https://palewi.re/docs/nifc-wildfires/"
 palewire_layout = "wide"
-palewire_navigation = "sidebar"
+palewire_navigation = "minimal"
