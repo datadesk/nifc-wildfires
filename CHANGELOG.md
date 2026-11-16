@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Add typed objects for the settings: a `QueryOptions` object that is checked as
+  soon as it is created, a `Layer` list of the NIFC layers, and `Fetcher` and
+  `Reply` types that describe the `get` function. `get_active_perimeters` and
+  `get_incidents` take a `QueryOptions` object in place of separate `where`,
+  `out_fields` and `geometry_precision` arguments, and `get` must be passed by
+  name.
 - Add a `get` setting to every download function, so callers can make requests
   with their own function.
 - Add `get_active_perimeters_last_edited` and `get_incidents_last_edited`,

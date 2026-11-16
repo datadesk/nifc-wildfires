@@ -4,8 +4,11 @@ import itertools
 from datetime import UTC, datetime
 
 import pytest
+import requests
+from pydantic import ValidationError
 
 import nifc_wildfires
+from nifc_wildfires import Fetcher, Layer, QueryOptions
 
 FAKE_DATA = {"type": "FeatureCollection", "features": []}
 
@@ -155,9 +158,11 @@ def test_options_shape_the_query(fake_get):
     """Test that the filter, fields and precision are sent to NIFC."""
     calls, _ = fake_get
     nifc_wildfires.get_active_perimeters(
-        where="attr_IncidentTypeCategory='WF'",
-        out_fields="OBJECTID",
-        geometry_precision=5,
+        QueryOptions(
+            where="attr_IncidentTypeCategory='WF'",
+            out_fields="OBJECTID",
+            geometry_precision=5,
+        )
     )
     params = calls[0][1]["params"]
     assert params["where"] == "attr_IncidentTypeCategory='WF'"
@@ -177,9 +182,11 @@ def test_precision_is_left_out_by_default(fake_get):
 def test_live_filter_and_fields():
     """Test that a live filter and field list change what comes back."""
     data = nifc_wildfires.get_active_perimeters(
-        where="attr_IncidentTypeCategory='WF'",
-        out_fields="OBJECTID,poly_IncidentName",
-        geometry_precision=5,
+        QueryOptions(
+            where="attr_IncidentTypeCategory='WF'",
+            out_fields="OBJECTID,poly_IncidentName",
+            geometry_precision=5,
+        )
     )
     for feature in data["features"]:
         assert set(feature["properties"]) <= {"OBJECTID", "poly_IncidentName"}
@@ -227,11 +234,20 @@ def test_invalid_paging_flag_raises(fake_get):
 
 @pytest.mark.integration
 def test_live_paging_returns_everything(monkeypatch):
-    """Test that tiny pages against the live service add up to the full count."""
-    whole = nifc_wildfires.get_incidents()
-    monkeypatch.setattr(nifc_wildfires, "PAGE_SIZE", 50)
-    paged = nifc_wildfires.get_incidents()
-    assert len(paged["features"]) == len(whole["features"])
+    """Test that tiny pages against the live service add up to the full count.
+
+    NIFC edits its data constantly, so the count can change between downloads.
+    The test is skipped, not failed, when NIFC will not hold still long enough.
+    """
+    try:
+        whole = nifc_wildfires.get_incidents()
+        monkeypatch.setattr(nifc_wildfires, "PAGE_SIZE", 50)
+        paged = nifc_wildfires.get_incidents()
+    except nifc_wildfires.NIFCError as error:
+        if "kept changing" in str(error):
+            pytest.skip("NIFC data kept changing during the download")
+        raise
+    assert abs(len(paged["features"]) - len(whole["features"])) <= 2
 
 
 @pytest.mark.integration
@@ -450,7 +466,14 @@ def test_features_without_object_ids_are_allowed(fake_get):
     state["response"] = FakeResponse(
         data={"type": "FeatureCollection", "features": [bare]}
     )
-    assert len(nifc_wildfires.get_incidents(out_fields="IncidentName")["features"]) == 1
+    assert (
+        len(
+            nifc_wildfires.get_incidents(QueryOptions(out_fields="IncidentName"))[
+                "features"
+            ]
+        )
+        == 1
+    )
 
 
 @pytest.mark.unit
@@ -468,14 +491,47 @@ def test_returned_features_are_the_original_dictionaries(fake_get):
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "settings",
-    [{"where": ""}, {"out_fields": ""}, {"geometry_precision": -1}],
+    [
+        {"where": ""},
+        {"out_fields": ""},
+        {"geometry_precision": -1},
+        {"geometry_precision": 2.5},
+        {"wher": "typo=1"},
+    ],
 )
-def test_bad_settings_raise_before_any_request(fake_get, settings):
-    """Test that nonsense settings are rejected without calling NIFC."""
-    calls, _ = fake_get
-    with pytest.raises(nifc_wildfires.NIFCError, match="settings"):
-        nifc_wildfires.get_incidents(**settings)
-    assert calls == []
+def test_bad_settings_are_rejected_when_created(settings):
+    """Test that nonsense or misspelled settings fail before any download."""
+    with pytest.raises(ValidationError):
+        QueryOptions(**settings)
+
+
+@pytest.mark.unit
+def test_options_are_frozen_and_comparable():
+    """Test that an options object cannot be changed and compares by value."""
+    options = QueryOptions(where="a=1")
+    assert options == QueryOptions(where="a=1")
+    with pytest.raises(ValidationError):
+        options.where = "b=2"
+
+
+@pytest.mark.unit
+def test_layers_name_their_services_and_shapes():
+    """Test that each layer carries its NIFC service name and allowed shapes."""
+    assert Layer.PERIMETERS.value == "WFIGS_Interagency_Perimeters_Current"
+    assert Layer.INCIDENTS.value == "WFIGS_Incident_Locations_Current"
+    assert Layer.PERIMETERS.geometry_types == {"Polygon", "MultiPolygon"}
+    assert Layer.INCIDENTS.geometry_types == {"Point"}
+
+
+@pytest.mark.unit
+def test_requests_get_fits_the_fetcher_shape():
+    """Test that the default fetcher and a plain function both fit the protocol."""
+
+    def mine(url, *, params, timeout):
+        return FakeResponse()
+
+    fetchers: list[Fetcher] = [requests.get, mine]
+    assert len(fetchers) == 2
 
 
 @pytest.mark.unit

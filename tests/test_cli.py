@@ -5,7 +5,7 @@ import json
 import pytest
 from click.testing import CliRunner
 
-from nifc_wildfires import cli
+from nifc_wildfires import QueryOptions, cli
 
 FAKE_DATA = {"type": "FeatureCollection", "features": []}
 
@@ -68,7 +68,7 @@ def test_unknown_command_fails(runner):
 def test_defaults_ask_for_everything(runner, command, name):
     """Test that the commands download everything unless told otherwise."""
     runner.invoke(cli.cmd, [command])
-    assert runner.calls[name] == ("1=1", "*", None)
+    assert runner.calls[name] == (QueryOptions(),)
 
 
 @pytest.mark.unit
@@ -91,4 +91,19 @@ def test_options_are_passed_along(runner, command, name):
         ],
     )
     assert result.exit_code == 0
-    assert runner.calls[name] == ("a=1", "OBJECTID", 5)
+    assert runner.calls[name] == (
+        QueryOptions(where="a=1", out_fields="OBJECTID", geometry_precision=5),
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "bad",
+    [["--where", ""], ["--out-fields", ""], ["--geometry-precision", "-1"]],
+)
+def test_invalid_options_are_a_usage_error(runner, bad):
+    """Test that a nonsense option is reported plainly and nothing downloads."""
+    result = runner.invoke(cli.cmd, ["incidents", *bad])
+    assert result.exit_code == 2
+    assert "Error" in result.output
+    assert runner.calls == {}

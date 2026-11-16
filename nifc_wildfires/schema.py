@@ -1,6 +1,7 @@
-"""Models that check the shape of what NIFC sends back and what callers ask for."""
+"""Typed objects for what callers ask for and what NIFC sends back."""
 
-from typing import Any, Literal
+from enum import StrEnum
+from typing import Any, Literal, Protocol
 
 from pydantic import (
     BaseModel,
@@ -15,17 +16,105 @@ from pydantic import (
 )
 
 
-class QueryOptions(BaseModel):
-    """The settings a caller can choose for a download.
+class Layer(StrEnum):
+    """The NIFC layers this package can download, named by their service.
 
     Examples:
-        >>> QueryOptions(where="OBJECTID > 5", geometry_precision=5).out_fields
+        >>> Layer.INCIDENTS.value
+        'WFIGS_Incident_Locations_Current'
+        >>> sorted(Layer.PERIMETERS.geometry_types)
+        ['MultiPolygon', 'Polygon']
+    """
+
+    PERIMETERS = "WFIGS_Interagency_Perimeters_Current"
+    INCIDENTS = "WFIGS_Incident_Locations_Current"
+
+    @property
+    def geometry_types(self) -> frozenset[str]:
+        """The GeoJSON geometry types this layer should return.
+
+        Returns:
+            The allowed geometry type names.
+
+        Examples:
+            >>> sorted(Layer.INCIDENTS.geometry_types)
+            ['Point']
+        """
+        if self is Layer.PERIMETERS:
+            return frozenset({"Polygon", "MultiPolygon"})
+        return frozenset({"Point"})
+
+
+class QueryOptions(BaseModel):
+    """The settings that shape which data a download returns.
+
+    The defaults return every feature and every field, with coordinates exactly
+    as NIFC sends them. Mistakes such as an empty filter, a negative precision or
+    a misspelled setting are rejected when the object is created.
+
+    Attributes:
+        where: A SQL-style filter that picks which features to return.
+        out_fields: The fields to return, as a comma-separated string.
+        geometry_precision: The number of decimal places to keep in coordinates,
+            or None to keep everything NIFC sends.
+
+    Examples:
+        >>> options = QueryOptions(
+        ...     where="attr_IncidentTypeCategory='WF'",
+        ...     out_fields="OBJECTID,poly_IncidentName",
+        ...     geometry_precision=5,
+        ... )
+        >>> QueryOptions().out_fields
         '*'
     """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     where: str = Field(default="1=1", min_length=1)
     out_fields: str = Field(default="*", min_length=1)
     geometry_precision: int | None = Field(default=None, ge=0)
+
+
+class Reply(Protocol):
+    """What a fetcher must hand back: a status code and a way to read the JSON.
+
+    A ``requests.Response`` fits this.
+    """
+
+    status_code: int
+
+    def json(self) -> object:
+        """Read the body of the reply as JSON.
+
+        Returns:
+            The parsed JSON.
+        """
+        ...
+
+
+class Fetcher(Protocol):
+    """A function that makes a web request for this package.
+
+    Pass one as ``get`` to add retries, logging or custom headers. ``requests.get``
+    fits this, and is the default.
+
+    Examples:
+        >>> import requests
+        >>> fetcher: Fetcher = requests.get
+    """
+
+    def __call__(self, url: str, *, params: dict[str, Any], timeout: float) -> Reply:
+        """Request a web address.
+
+        Args:
+            url: The address to request.
+            params: The query parameters to send.
+            timeout: The seconds to wait before giving up.
+
+        Returns:
+            The reply.
+        """
+        ...
 
 
 class Geometry(BaseModel):

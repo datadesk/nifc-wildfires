@@ -55,14 +55,20 @@ reached, sends back an error, or sends data in an unexpected shape, they raise
 `nifc_wildfires.NIFCError`. NIFC edits its data constantly, so a download that
 catches a change halfway through starts over, up to three times.
 
-Choose which features, fields and coordinate precision to download.
+Choose which features, fields and coordinate precision to download with a
+`QueryOptions` object. The defaults return everything, and mistakes such as an
+empty filter, a negative precision or a misspelled setting are rejected as soon
+as the object is created.
 
 ```python
-data = nifc_wildfires.get_active_perimeters(
+from nifc_wildfires import QueryOptions
+
+options = QueryOptions(
     where="attr_IncidentTypeCategory='WF'",
     out_fields="OBJECTID,poly_IncidentName",
     geometry_precision=5,
 )
+data = nifc_wildfires.get_active_perimeters(options)
 ```
 
 The same settings are available on the command line as `--where`,
@@ -77,7 +83,8 @@ edited = nifc_wildfires.get_active_perimeters_last_edited()
 
 Make requests with your own function to add retries, logging or custom headers.
 It is called like `requests.get(url, params=params, timeout=seconds)` and must
-return something with `status_code` and `json()`.
+return something with `status_code` and `json()`. The `Fetcher` and `Reply`
+types describe this, so a type checker can confirm your function fits.
 
 ```python
 data = nifc_wildfires.get_incidents(get=my_get)

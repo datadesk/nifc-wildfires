@@ -4,8 +4,9 @@ import json
 from collections.abc import Callable
 
 import click
+from pydantic import ValidationError
 
-from nifc_wildfires import get_active_perimeters, get_incidents
+from nifc_wildfires import QueryOptions, get_active_perimeters, get_incidents
 
 
 @click.group()
@@ -50,6 +51,38 @@ def query_options(function: Callable[..., None]) -> Callable[..., None]:
     return function
 
 
+def build_options(
+    where: str, out_fields: str, geometry_precision: int | None
+) -> QueryOptions:
+    """Turn the command-line options into a checked options object.
+
+    Args:
+        where: A SQL-style filter that picks which features to return.
+        out_fields: The fields to return, as a comma-separated string.
+        geometry_precision: The decimal places to keep in coordinates.
+
+    Returns:
+        The options object.
+
+    Raises:
+        click.UsageError: If an option is not valid, such as an empty filter or a
+            negative precision.
+
+    Examples:
+        >>> build_options("1=1", "*", 5).geometry_precision
+        5
+    """
+    try:
+        return QueryOptions(
+            where=where, out_fields=out_fields, geometry_precision=geometry_precision
+        )
+    except ValidationError as error:
+        problems = "; ".join(
+            f"{e['loc'][0]}: {e['msg']}" for e in error.errors() if e["loc"]
+        )
+        raise click.UsageError(problems) from error
+
+
 @cmd.command(help="Perimeters of active fires")
 @query_options
 def active_perimeters(
@@ -66,7 +99,7 @@ def active_perimeters(
         $ nifcwildfires active-perimeters
         $ nifcwildfires active-perimeters --where "attr_IncidentTypeCategory='WF'"
     """
-    data = get_active_perimeters(where, out_fields, geometry_precision)
+    data = get_active_perimeters(build_options(where, out_fields, geometry_precision))
     click.echo(json.dumps(data))
 
 
@@ -84,7 +117,7 @@ def incidents(where: str, out_fields: str, geometry_precision: int | None) -> No
         $ nifcwildfires incidents
         $ nifcwildfires incidents --out-fields OBJECTID,IncidentName
     """
-    data = get_incidents(where, out_fields, geometry_precision)
+    data = get_incidents(build_options(where, out_fields, geometry_precision))
     click.echo(json.dumps(data))
 
 

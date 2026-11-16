@@ -39,10 +39,12 @@ autodoc_default_options = {
     "show-inheritance": True,
 }
 autosummary_generate = True
+napoleon_use_ivar = True
 
 nitpicky = True
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
+    "pydantic": ("https://docs.pydantic.dev/latest/", None),
 }
 
 linkcheck_timeout = 10

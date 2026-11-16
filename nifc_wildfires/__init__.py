@@ -1,22 +1,37 @@
 """Download wildfires data from the National Interagency Fire Center."""
 
-from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any, TypeVar
 
 import requests
 from pydantic import BaseModel, ValidationError
 
-from nifc_wildfires.schema import LayerMetadata, Page, QueryOptions
+from nifc_wildfires.schema import (
+    Fetcher,
+    Layer,
+    LayerMetadata,
+    Page,
+    QueryOptions,
+    Reply,
+)
+
+__all__ = [
+    "Fetcher",
+    "Layer",
+    "NIFCError",
+    "QueryOptions",
+    "Reply",
+    "get_active_perimeters",
+    "get_active_perimeters_last_edited",
+    "get_incidents",
+    "get_incidents_last_edited",
+]
 
 BASE_URL = "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services"
 TIMEOUT = 60
 PAGE_SIZE = 1000
 MAX_PAGES = 100
 MAX_ATTEMPTS = 3
-PERIMETER_GEOMETRY = {"Polygon", "MultiPolygon"}
-INCIDENT_GEOMETRY = {"Point"}
-
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -67,7 +82,7 @@ def _check(
 
 
 def _get_json(
-    url: str, params: dict[str, Any], get: Callable[..., Any] | None = None
+    url: str, params: dict[str, Any], get: Fetcher | None = None
 ) -> dict[str, Any]:
     """Make one request to NIFC and return its reply as a dictionary.
 
@@ -77,11 +92,8 @@ def _get_json(
     Args:
         url: The address to request.
         params: The query parameters to send.
-        get: A function that makes the web request, called like
-            ``requests.get(url, params=params, timeout=seconds)`` and returning
-            something with ``status_code`` and ``json()``. The default is
-            ``requests.get``. Pass your own to add retries, logging or custom
-            headers.
+        get: The function that makes the web request, or None for
+            ``requests.get``.
 
     Returns:
         The reply parsed into a dictionary.
@@ -91,11 +103,12 @@ def _get_json(
             reply contains an error message.
 
     Examples:
-        >>> layer = "WFIGS_Incident_Locations_Current/FeatureServer/0"
+        >>> layer = f"{Layer.INCIDENTS}/FeatureServer/0"
         >>> _get_json(f"{BASE_URL}/{layer}", {"f": "json"})["name"]
         'WFIGS_Incident_Locations_Current'
     """
-    r = (get or requests.get)(url, params=params, timeout=TIMEOUT)
+    fetch: Fetcher = get or requests.get
+    r = fetch(url, params=params, timeout=TIMEOUT)
     if r.status_code != 200:
         raise NIFCError(f"Request for data failed with {r.status_code} status code")
     try:
@@ -110,59 +123,37 @@ def _get_json(
 
 
 def _get_geojson(
-    service: str,
-    geometry_types: set[str],
-    where: str = "1=1",
-    out_fields: str = "*",
-    geometry_precision: int | None = None,
-    get: Callable[..., Any] | None = None,
+    layer: Layer, options: QueryOptions, get: Fetcher | None = None
 ) -> dict[str, Any]:
-    """Request features from one NIFC feature service as GeoJSON.
+    """Request features from one NIFC layer as GeoJSON.
 
     NIFC returns a limited number of features per request, so this keeps asking
-    for the next page until NIFC says there are no more.
+    for the next page until NIFC says there are no more. NIFC edits its data all
+    the time, so a download that catches a change halfway through starts over.
 
     Args:
-        service: The name of the NIFC feature service to query.
-        geometry_types: The GeoJSON geometry types the service should return.
-        where: A SQL-style filter that picks which features to return. The
-            default returns all of them.
-        out_fields: The fields to return, as a comma-separated string. The
-            default returns all of them.
-        geometry_precision: The number of decimal places to keep in coordinates.
-            The default keeps everything NIFC sends.
-        get: A function that makes the web request, called like
-            ``requests.get(url, params=params, timeout=seconds)`` and returning
-            something with ``status_code`` and ``json()``. The default is
-            ``requests.get``. Pass your own to add retries, logging or custom
-            headers.
+        layer: The NIFC layer to download.
+        options: The settings that shape the query.
+        get: The function that makes the web request, or None for
+            ``requests.get``.
 
     Returns:
         A GeoJSON feature collection with the features from every page.
 
     Raises:
-        NIFCError: If the settings are not valid, a request fails, a reply does
-            not have the expected shape, the pages stop before NIFC says it is
-            done, there are more than ``MAX_PAGES`` pages, or NIFC's data keeps
-            changing during ``MAX_ATTEMPTS`` download attempts.
+        NIFCError: If a request fails, a reply does not have the expected shape,
+            the pages stop before NIFC says it is done, there are more than
+            ``MAX_PAGES`` pages, or NIFC's data keeps changing during
+            ``MAX_ATTEMPTS`` download attempts.
 
     Examples:
-        >>> data = _get_geojson("WFIGS_Incident_Locations_Current", {"Point"})
+        >>> data = _get_geojson(Layer.INCIDENTS, QueryOptions())
         >>> data["type"]
         'FeatureCollection'
     """
-    options = _check(
-        QueryOptions,
-        {
-            "where": where,
-            "out_fields": out_fields,
-            "geometry_precision": geometry_precision,
-        },
-        "settings",
-    )
     for _ in range(MAX_ATTEMPTS):
         try:
-            return _download_pages(service, geometry_types, options, get)
+            return _download_pages(layer, options, get)
         except _DataChangedError:
             continue
     raise NIFCError(
@@ -171,22 +162,19 @@ def _get_geojson(
 
 
 def _download_pages(
-    service: str,
-    geometry_types: set[str],
-    options: QueryOptions,
-    get: Callable[..., Any] | None,
+    layer: Layer, options: QueryOptions, get: Fetcher | None
 ) -> dict[str, Any]:
-    """Download every page from a feature service, once through.
+    """Download every page from a layer, once through.
 
     NIFC edits its data all the time. If an edit lands while the pages are being
     read, later pages shift and the same feature can show up twice, which means
     another feature was skipped. That is detected by repeated feature IDs.
 
     Args:
-        service: The name of the NIFC feature service to query.
-        geometry_types: The GeoJSON geometry types the service should return.
-        options: The checked settings that shape the query.
-        get: The function that makes web requests, or None for the default.
+        layer: The NIFC layer to download.
+        options: The settings that shape the query.
+        get: The function that makes the web request, or None for
+            ``requests.get``.
 
     Returns:
         A GeoJSON feature collection with the features from every page.
@@ -198,10 +186,7 @@ def _download_pages(
         _DataChangedError: If a feature ID is repeated across pages.
 
     Examples:
-        >>> options = QueryOptions()
-        >>> data = _download_pages(
-        ...     "WFIGS_Incident_Locations_Current", {"Point"}, options, None
-        ... )
+        >>> data = _download_pages(Layer.INCIDENTS, QueryOptions(), None)
         >>> data["type"]
         'FeatureCollection'
     """
@@ -219,8 +204,8 @@ def _download_pages(
         }
         if options.geometry_precision is not None:
             params["geometryPrecision"] = options.geometry_precision
-        reply = _get_json(f"{BASE_URL}/{service}/FeatureServer/0/query", params, get)
-        page = _check(Page, reply, "reply", {"geometry_types": geometry_types})
+        reply = _get_json(f"{BASE_URL}/{layer}/FeatureServer/0/query", params, get)
+        page = _check(Page, reply, "reply", {"geometry_types": layer.geometry_types})
         for feature in page.features:
             object_id = feature.properties.get("OBJECTID")
             if object_id is None:
@@ -239,16 +224,13 @@ def _download_pages(
     raise NIFCError(f"NIFC exceeded the {MAX_PAGES}-page safety limit.")
 
 
-def _get_last_edited(service: str, get: Callable[..., Any] | None = None) -> datetime:
-    """Ask NIFC when a feature service's data was last edited.
+def _get_last_edited(layer: Layer, get: Fetcher | None = None) -> datetime:
+    """Ask NIFC when a layer's data was last edited.
 
     Args:
-        service: The name of the NIFC feature service to ask about.
-        get: A function that makes the web request, called like
-            ``requests.get(url, params=params, timeout=seconds)`` and returning
-            something with ``status_code`` and ``json()``. The default is
-            ``requests.get``. Pass your own to add retries, logging or custom
-            headers.
+        layer: The NIFC layer to ask about.
+        get: The function that makes the web request, or None for
+            ``requests.get``.
 
     Returns:
         The last edit time, in UTC.
@@ -257,12 +239,12 @@ def _get_last_edited(service: str, get: Callable[..., Any] | None = None) -> dat
         NIFCError: If NIFC does not report a usable last edit time.
 
     Examples:
-        >>> _get_last_edited("WFIGS_Incident_Locations_Current").tzinfo
+        >>> _get_last_edited(Layer.INCIDENTS).tzinfo
         datetime.timezone.utc
     """
-    reply = _get_json(f"{BASE_URL}/{service}/FeatureServer/0", {"f": "json"}, get)
-    layer = _check(LayerMetadata, reply, "layer metadata")
-    last_edit = layer.editingInfo.lastEditDate
+    reply = _get_json(f"{BASE_URL}/{layer}/FeatureServer/0", {"f": "json"}, get)
+    metadata = _check(LayerMetadata, reply, "layer metadata")
+    last_edit = metadata.editingInfo.lastEditDate
     try:
         return datetime.fromtimestamp(last_edit / 1000, UTC)
     except (OverflowError, OSError, ValueError) as error:
@@ -270,109 +252,77 @@ def _get_last_edited(service: str, get: Callable[..., Any] | None = None) -> dat
 
 
 def get_active_perimeters(
-    where: str = "1=1",
-    out_fields: str = "*",
-    geometry_precision: int | None = None,
-    get: Callable[..., Any] | None = None,
+    options: QueryOptions | None = None, *, get: Fetcher | None = None
 ) -> dict[str, Any]:
     """Get fire perimeters of all active fires from NIFC.
 
-
     Args:
-        where: A SQL-style filter that picks which features to return. The
-            default returns all of them.
-        out_fields: The fields to return, as a comma-separated string. The
-            default returns all of them.
-        geometry_precision: The number of decimal places to keep in coordinates.
-            The default keeps everything NIFC sends.
-        get: A function that makes the web request, called like
-            ``requests.get(url, params=params, timeout=seconds)`` and returning
-            something with ``status_code`` and ``json()``. The default is
-            ``requests.get``. Pass your own to add retries, logging or custom
+        options: The settings that shape the query. The default returns every
+            perimeter with every field.
+        get: A function that makes the web request, such as ``requests.get``
+            (the default). Pass your own to add retries, logging or custom
             headers.
 
     Returns:
         A GeoJSON object with multipolygon geometry.
 
     Raises:
-        NIFCError: If NIFC cannot be reached or sends back an error.
+        NIFCError: If NIFC cannot be reached, sends back an error, or sends data
+            in an unexpected shape.
 
     Examples:
         >>> data = get_active_perimeters()
         >>> data["type"]
         'FeatureCollection'
         >>> wildfires = get_active_perimeters(
-        ...     where="attr_IncidentTypeCategory='WF'",
-        ...     out_fields="OBJECTID,poly_IncidentName",
-        ...     geometry_precision=5,
+        ...     QueryOptions(
+        ...         where="attr_IncidentTypeCategory='WF'",
+        ...         out_fields="OBJECTID,poly_IncidentName",
+        ...         geometry_precision=5,
+        ...     )
         ... )
     """
-    return _get_geojson(
-        "WFIGS_Interagency_Perimeters_Current",
-        PERIMETER_GEOMETRY,
-        where,
-        out_fields,
-        geometry_precision,
-        get,
-    )
+    return _get_geojson(Layer.PERIMETERS, options or QueryOptions(), get)
 
 
 def get_incidents(
-    where: str = "1=1",
-    out_fields: str = "*",
-    geometry_precision: int | None = None,
-    get: Callable[..., Any] | None = None,
+    options: QueryOptions | None = None, *, get: Fetcher | None = None
 ) -> dict[str, Any]:
     """Get year-to-date fire incident points from NIFC situation reports.
 
     Includes active and inactive incidents.
 
     Args:
-        where: A SQL-style filter that picks which features to return. The
-            default returns all of them.
-        out_fields: The fields to return, as a comma-separated string. The
-            default returns all of them.
-        geometry_precision: The number of decimal places to keep in coordinates.
-            The default keeps everything NIFC sends.
-        get: A function that makes the web request, called like
-            ``requests.get(url, params=params, timeout=seconds)`` and returning
-            something with ``status_code`` and ``json()``. The default is
-            ``requests.get``. Pass your own to add retries, logging or custom
+        options: The settings that shape the query. The default returns every
+            incident with every field.
+        get: A function that makes the web request, such as ``requests.get``
+            (the default). Pass your own to add retries, logging or custom
             headers.
 
     Returns:
         A GeoJSON object with point geometry.
 
     Raises:
-        NIFCError: If NIFC cannot be reached or sends back an error.
+        NIFCError: If NIFC cannot be reached, sends back an error, or sends data
+            in an unexpected shape.
 
     Examples:
         >>> data = get_incidents()
         >>> data["type"]
         'FeatureCollection'
+        >>> names = get_incidents(QueryOptions(out_fields="OBJECTID,IncidentName"))
     """
-    return _get_geojson(
-        "WFIGS_Incident_Locations_Current",
-        INCIDENT_GEOMETRY,
-        where,
-        out_fields,
-        geometry_precision,
-        get,
-    )
+    return _get_geojson(Layer.INCIDENTS, options or QueryOptions(), get)
 
 
-def get_active_perimeters_last_edited(
-    get: Callable[..., Any] | None = None,
-) -> datetime:
+def get_active_perimeters_last_edited(*, get: Fetcher | None = None) -> datetime:
     """Get when NIFC last edited its active fire perimeters.
 
     Useful for skipping a download when nothing has changed.
 
     Args:
-        get: A function that makes the web request, called like
-            ``requests.get(url, params=params, timeout=seconds)`` and returning
-            something with ``status_code`` and ``json()``. The default is
-            ``requests.get``. Pass your own to add retries, logging or custom
+        get: A function that makes the web request, such as ``requests.get``
+            (the default). Pass your own to add retries, logging or custom
             headers.
 
     Returns:
@@ -385,19 +335,17 @@ def get_active_perimeters_last_edited(
         >>> get_active_perimeters_last_edited().tzinfo
         datetime.timezone.utc
     """
-    return _get_last_edited("WFIGS_Interagency_Perimeters_Current", get)
+    return _get_last_edited(Layer.PERIMETERS, get)
 
 
-def get_incidents_last_edited(get: Callable[..., Any] | None = None) -> datetime:
+def get_incidents_last_edited(*, get: Fetcher | None = None) -> datetime:
     """Get when NIFC last edited its fire incident points.
 
     Useful for skipping a download when nothing has changed.
 
     Args:
-        get: A function that makes the web request, called like
-            ``requests.get(url, params=params, timeout=seconds)`` and returning
-            something with ``status_code`` and ``json()``. The default is
-            ``requests.get``. Pass your own to add retries, logging or custom
+        get: A function that makes the web request, such as ``requests.get``
+            (the default). Pass your own to add retries, logging or custom
             headers.
 
     Returns:
@@ -410,4 +358,4 @@ def get_incidents_last_edited(get: Callable[..., Any] | None = None) -> datetime
         >>> get_incidents_last_edited().tzinfo
         datetime.timezone.utc
     """
-    return _get_last_edited("WFIGS_Incident_Locations_Current", get)
+    return _get_last_edited(Layer.INCIDENTS, get)
