@@ -62,6 +62,27 @@ or creating a release still requires explicit human approval.
    test "$(git rev-parse "${VERSION}^{commit}")" = "$EXPECTED_COMMIT"
    ```
 
+## Publishing to PyPI
+
+Releases publish with PyPI trusted publishing. The workflow proves its identity
+to PyPI for each release, so no password or API token is stored in GitHub. The
+`release` job in `.github/workflows/continuous-deployment.yaml` runs only for a
+pushed tag and uses the `pypi` environment.
+
+One-time setup, done by a maintainer:
+
+1. On PyPI, open the `nifc-wildfires` project, then Manage, then Publishing, and
+   add a GitHub trusted publisher with these values:
+   - Owner: `datadesk`
+   - Repository: `nifc-wildfires`
+   - Workflow: `continuous-deployment.yaml`
+   - Environment: `pypi`
+2. In GitHub, open Settings, then Environments, and create `pypi`. Add a
+   required reviewer, so each publication waits for a person to approve it.
+   Limit deployments to tags.
+3. After a release publishes successfully with trusted publishing, delete the old
+   `PYPI_API_TOKEN` repository secret and revoke the token on PyPI.
+
 ## Documentation Deployment
 
 Package documentation lives in this repository under `docs/`. The
