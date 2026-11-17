@@ -67,7 +67,7 @@ or creating a release still requires explicit human approval.
 Releases publish with PyPI trusted publishing. The workflow proves its identity
 to PyPI for each release, so no password or API token is stored in GitHub. The
 `release` job in `.github/workflows/continuous-deployment.yaml` runs only for a
-pushed tag and uses the `pypi` environment.
+pushed tag.
 
 One-time setup, done by a maintainer:
 
@@ -76,12 +76,14 @@ One-time setup, done by a maintainer:
    - Owner: `datadesk`
    - Repository: `nifc-wildfires`
    - Workflow: `continuous-deployment.yaml`
-   - Environment: `pypi`
-2. In GitHub, open Settings, then Environments, and create `pypi`. Add a
-   required reviewer, so each publication waits for a person to approve it.
-   Limit deployments to tags.
-3. After a release publishes successfully with trusted publishing, delete the old
+   - Environment: leave blank
+2. After a release publishes successfully with trusted publishing, delete the old
    `PYPI_API_TOKEN` repository secret and revoke the token on PyPI.
+
+Later, a repository admin can add a GitHub environment named `pypi` with a
+required reviewer, so each publication waits for a person to approve it. To use
+it, add `environment: pypi` to the `release` job and enter `pypi` as the
+environment on PyPI.
 
 ## Documentation Deployment
 
