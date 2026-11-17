@@ -33,6 +33,7 @@ year = client.download(Layer.INCIDENTS_YEAR_TO_DATE)
 * **`incidents` is not the whole year.** It is NIFC's current layer: a few hundred incidents that are active or were updated recently. Use the year-to-date layer for the year.
 * **Prescribed burns are included.** They are fires lit on purpose, and they are most of the current incident points. Leave them out with `--exclude-incident-type RX`.
 * **The data has no license and no warranty.** The code is MIT. Check NIFC's terms before you republish the data.
+* **AI helped write this package.** AI tools assisted in writing its code, tests and documentation. A person directed and reviewed the work.
 
 The documentation has the full list of layers, options, codes and errors.
 
