@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-16
+
 ### Added
 
 - Add the year-to-date incident and perimeter layers and the last-24-hours incident
@@ -59,6 +61,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   keep the old behavior.
 ### Changed
 
+- Check downloaded data by default. Data that does not have the expected shape
+  now raises `NIFCValidationError`. Before, it was returned as NIFC sent it. Pass
+  `strict=False` (or `--no-strict` on the command line)
+  to get the old behavior.
+- Require `pydantic`, which is now installed with the package.
+- Raise `NIFCError`, a subclass of `Exception`, when a download fails, instead of
+  a bare `Exception`. Downloads now time out after 60 seconds.
 - Show a failed download on the command line as a short `Error:` message and a
   non-zero exit code, instead of a traceback. `--verbose` lists every problem
   found in data that was not in the expected shape.
@@ -88,5 +97,3 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Removed
 
 - Remove the Pipfile in favor of `pyproject.toml` and `uv.lock`.
-
-### Security
