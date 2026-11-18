@@ -400,6 +400,8 @@ make check
 make test
 ```
 
+`make test` also measures test coverage, counting every if/else path, and fails if it drops below 95%. Use `make test-fast` for a quicker run without coverage. The tests that call NIFC's real service are skipped by default. Run them with `make test-live`.
+
 Run everything CI runs.
 
 ```sh
