@@ -8,7 +8,7 @@ workflow, run by hand only, that saves the latest perimeters in `data/`.
 ## Repository Structure
 
 - `nifc_wildfires/`: The library (`__init__.py`) and the Click command line (`cli.py`).
-- `tests/`: Tests. The NIFC tests call the live service and are marked `integration`.
+- `tests/`: Tests. The NIFC tests call the live service and are marked `integration` and skipped unless you run `make test-live`.
 - `data/`: Output of the manual scrape. Never hand-edit these files.
 - `docs/`: Sphinx documentation source.
 - `.github/workflows/`: Continuous integration, documentation, release and scrape workflows.
@@ -52,6 +52,9 @@ Use these commands while making changes:
 ```sh
 make check   # Fast, non-mutating lint, format, and type checks
 make verify  # Full local CI suite: checks, tests, build, and docs
+make test  # Offline tests with coverage; fails under the 95% floor
+make test-fast  # Offline tests without coverage
+make test-live  # Tests that call NIFC's real service (skipped by default)
 make test-serial  # Debug tests without parallel workers
 make test-parallel  # Use for a large, independent test suite
 ```

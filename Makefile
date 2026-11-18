@@ -4,11 +4,10 @@ UV ?= uv
 UV_PYTHON ?=
 PYTHON ?= python3
 PACKAGE ?=
-COVERAGE_FAIL_UNDER ?= 80
 TEST_ARGS ?=
 RUN = $(if $(UV_PYTHON),UV_PYTHON=$(UV_PYTHON)) $(UV) run
 
-.PHONY: all help bootstrap install install-all install-dev install-test install-test-extras install-docs notebooks check verify diff-check lint format-check format fix type-check dependency-check workflow-check manifest-check test test-serial test-parallel coverage build package-check package-verify docs docs-check linkcheck build-docs serve-docs hooks clean
+.PHONY: all help bootstrap install install-all install-dev install-test install-test-extras install-docs notebooks check verify diff-check lint format-check format fix type-check dependency-check workflow-check manifest-check test test-fast test-live test-serial test-parallel coverage build package-check package-verify docs docs-check linkcheck build-docs serve-docs hooks clean
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_-]+:.*## / {printf "%-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -72,17 +71,23 @@ workflow-check: ## Audit GitHub Actions workflows with Zizmor
 manifest-check: ## Check source distribution contents
 	$(RUN) check-manifest
 
-test: ## Run tests serially
+test: ## Run offline tests with coverage, failing under the 95% floor
+	$(RUN) pytest --cov $(TEST_ARGS)
+
+test-fast: ## Run offline tests serially, without coverage
 	$(RUN) pytest $(TEST_ARGS)
 
-test-serial: test ## Run tests without parallel workers
+test-serial: test-fast ## Run tests without parallel workers or coverage
+
+test-live: ## Run the tests that call NIFC's real service
+	$(RUN) pytest -m integration $(TEST_ARGS)
 
 test-parallel: ## Run independent tests with parallel workers
 	$(RUN) pytest -n auto $(TEST_ARGS)
 
-coverage: ## Enforce coverage for PACKAGE
+coverage: ## Enforce the coverage floor for PACKAGE
 	@test -n "$(PACKAGE)" || { echo "Set PACKAGE to the library import name."; exit 2; }
-	$(RUN) pytest $(TEST_ARGS) --cov="$(PACKAGE)" --cov-branch --cov-report=term-missing:skip-covered --cov-fail-under="$(COVERAGE_FAIL_UNDER)"
+	$(RUN) pytest $(TEST_ARGS) --cov="$(PACKAGE)"
 
 build: ## Build source and wheel distributions
 	rm -rf dist

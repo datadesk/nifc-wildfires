@@ -66,9 +66,15 @@ jobs:
         name: Install Python dependencies
         run: make install-test UV_PYTHON=${{ matrix.python }}
 
+      - id: tests-coverage
+        name: Run tests with coverage
+        if: matrix.python == '3.14'
+        run: make test UV_PYTHON=${{ matrix.python }}
+
       - id: tests
         name: Run tests
-        run: make test UV_PYTHON=${{ matrix.python }}
+        if: matrix.python != '3.14'
+        run: make test-fast UV_PYTHON=${{ matrix.python }}
 
       - name: Verify package distribution
         if: matrix.python == '3.13' && vars.PACKAGE_IMPORT_NAME != ''

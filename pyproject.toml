@@ -161,6 +161,8 @@ addopts = [
     "--strict-markers",
     "--durations=10",
     "--durations-min=1.0",
+    "-m",
+    "not integration",
 ]
 testpaths = ["tests"]
 python_files = "test_*.py"
@@ -169,7 +171,7 @@ xfail_strict = true
 markers = [
     "unit: Unit tests",
     "component: Component tests",
-    "integration: Integration tests",
+    "integration: Live tests that call NIFC's real service (skipped by default; run with make test-live)",
     "e2e: End-to-end tests",
 ]
 filterwarnings = [
@@ -183,6 +185,17 @@ source = ["nifc_wildfires"]
 branch = true
 relative_files = true
 omit = ["*/__pycache__/*"]
+
+[tool.coverage.report]
+fail_under = 95
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "^\\s*\\.\\.\\.$",
+]
 
 [tool.ty.environment]
 python-version = "3.11"
